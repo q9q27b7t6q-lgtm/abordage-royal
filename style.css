@@ -414,3 +414,17 @@ svg{display:block}
 .sv-perks{list-style:none;margin:0 0 12px;padding:0;font-size:12px;font-weight:800;color:#c9d6ee}
 .sv-perks li{padding:3px 0 3px 22px;position:relative}
 .sv-perks li:before{content:"✦";position:absolute;left:4px;color:#f3c64d}
+.blabel .bl-ship{margin-top:3px;font-family:'Lilita One';font-size:12px;color:#fff;padding:1px 9px 2px;border-radius:9px;background:linear-gradient(180deg,rgba(20,40,80,.92),rgba(4,12,28,.92));border:1.5px solid #f3c64d;white-space:nowrap;text-shadow:0 1px 0 #000}
+#chestFx .cf-cv{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+#chestFx.opened .cf-rays{animation:spin 6s linear infinite;opacity:1;filter:brightness(1.8)}
+#chestFx.opened .cf-glow{animation:pulse .5s infinite}
+#chestFx.opened .cf-title{animation:titlePop .6s cubic-bezier(.2,1.8,.4,1)}
+@keyframes titlePop{0%{transform:scale(.6)}60%{transform:scale(1.25)}100%{transform:scale(1)}}
+.cf-card{animation:cardin .6s cubic-bezier(.2,1.6,.4,1) both,cardShine 2s ease-in-out .6s infinite}
+.cf-card.gem{--rc:#59f0ff;--rg:rgba(89,240,255,.55)}
+@keyframes cardShine{0%,100%{filter:brightness(1)}50%{filter:brightness(1.35)}}
+#chestFx{inset:-40px;padding:40px}
+#chestFx .cf-cv{inset:40px;width:calc(100% - 80px);height:calc(100% - 80px)}
+.ship-cmp-h{font-family:'Lilita One';font-size:13px;color:#ffe48a;text-align:center;letter-spacing:1px;margin:2px 0 -2px;text-shadow:0 1px 0 #000}
+.up-cmp.ship .up-img{background:radial-gradient(circle at 50% 70%,#5fc8ff,#1b5fa8 55%,#0b1f42)}
+.up-cmp.ship .up-img img{width:100%;height:100%;transform:none}

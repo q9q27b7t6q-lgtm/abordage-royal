@@ -420,7 +420,7 @@ const shake = a => shakeAmt = Math.min(1.6, shakeAmt + a);
 
 /* ---------------- MODELS ---------------- */
 const MODELS = {};
-const MODEL_LIST = ['barrel', 'boat-row-small', 'boat-row-large', 'cannon', 'cannon-mobile', 'cannon-ball', 'castle-wall', 'castle-gate', 'castle-window', 'chest', 'crate', 'crate-bottles', 'flag-pirate', 'flag-pirate-high', 'flag-pirate-pennant', 'flag-high-pennant', 'flag-pennant', 'grass-patch', 'grass-plant', 'patch-grass-foliage', 'patch-sand-foliage', 'palm-bend', 'palm-detailed-bend', 'palm-detailed-straight', 'palm-straight', 'platform', 'platform-planks', 'rocks-a', 'rocks-b', 'rocks-c', 'rocks-sand-a', 'rocks-sand-b', 'rocks-sand-c', 'ship-ghost', 'ship-large', 'ship-medium', 'ship-small', 'ship-pirate-large', 'ship-pirate-medium', 'ship-pirate-small', 'ship-wreck', 'structure', 'structure-roof', 'structure-platform-dock', 'structure-platform', 'structure-fence', 'tower-base', 'tower-base-door', 'tower-middle', 'tower-middle-windows', 'tower-top', 'tower-roof', 'tower-watch', 'tower-complete-small', 'tower-complete-large', 'bottle-large', 'mast-ropes'];
+const MODEL_LIST = ['barrel', 'boat-row-small', 'boat-row-large', 'cannon', 'cannon-mobile', 'cannon-ball', 'castle-wall', 'castle-gate', 'castle-window', 'chest', 'crate', 'crate-bottles', 'flag-pirate', 'flag-pirate-high', 'flag-pirate-pennant', 'flag-high-pennant', 'flag-pennant', 'grass-patch', 'grass-plant', 'patch-grass-foliage', 'patch-sand-foliage', 'palm-bend', 'palm-detailed-bend', 'palm-detailed-straight', 'palm-straight', 'platform', 'platform-planks', 'rocks-a', 'rocks-b', 'rocks-c', 'rocks-sand-a', 'rocks-sand-b', 'rocks-sand-c', 'ship-ghost', 'ship-large', 'ship-medium', 'ship-small', 'ship-pirate-large', 'ship-pirate-medium', 'ship-pirate-small', 'ship-wreck', 'structure', 'structure-roof', 'structure-platform-dock', 'structure-platform', 'structure-fence', 'tower-base', 'tower-base-door', 'tower-middle', 'tower-middle-windows', 'tower-top', 'tower-roof', 'tower-watch', 'tower-complete-small', 'tower-complete-large', 'bottle-large', 'mast-ropes', 'flag-pirate-high-pennant', 'tool-paddle', 'tool-shovel'];
 let boostedMap = null;
 function boostColormap(tex) {
   const img = tex.image; const c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
@@ -511,17 +511,57 @@ function coinPile(n, R, H, seed = 1) {
 }
 const shipNames = { pirate: ['ship-pirate-small', 'ship-pirate-medium', 'ship-pirate-large'], royal: ['ship-small', 'ship-medium', 'ship-large'] };
 function shipMat(id, part) { const sk = SKINS[id]; if (!sk || !sk.pal) return null; return palMaterial(`ship:${id}:${part}`, { ...sk.pal, ...(sk[part] || {}) }); }
-function makeShip(tier, skinId = S.skin, scale = .62) {
+/* chaque niveau du Quai = un NOUVEAU navire : plus grand, nouvelles couleurs, nouveaux équipements */
+const SHIPLV = [null,
+  { name: 'Chaloupe', s: .46, tier: 1, col: '#c98a4b', pal: null },
+  { name: 'Brigantin Rouge', s: .6, tier: 2, col: '#e0483a', pal: { '5,3': { c: '#d32f2f', k: .7 }, '9,3': { c: '#f2e2b8' } } },
+  { name: 'Frégate Azur', s: .72, tier: 3, col: '#3d8bff', pal: { '5,3': { c: '#f6f3ea', k: .45 }, '9,3': { c: '#2f6fd8' }, '13,3': { c: '#1f3f7a' }, '7,3': { c: '#e0b040', m: .9, r: .3 }, '3,3': { c: '#e0b040', m: .9, r: .3 } } },
+  { name: 'Galion de Guerre', s: .84, tier: 3, col: '#a24bff', pal: { '11,3': { c: '#3a2433' }, '13,3': { c: '#1a0e1a' }, '5,3': { c: '#8a3fe0', k: .6, e: .14 }, '9,3': { c: '#ffcc4d', m: 1, r: .3, e: .15 }, '7,3': { c: '#ffcc4d', m: 1, r: .3 }, '3,3': { c: '#ffcc4d', m: 1, r: .3 }, '1,3': { c: '#160a18' } } },
+  { name: "Vaisseau Royal d'Or", s: .96, tier: 3, col: '#ffc83a', pal: { '11,3': { c: '#ffcf3a', m: 1, r: .22, e: .06 }, '13,3': { c: '#8c1f2c' }, '5,3': { c: '#c8102e', k: .6, e: .08 }, '9,3': { c: '#ffe17a', m: 1, r: .2, e: .4 }, '3,3': { c: '#ffd76a', m: 1, r: .25 }, '7,3': { c: '#ffd76a', m: 1, r: .25 }, '1,3': { c: '#3a0e18' } } },
+];
+const SHIP_DECK = 2.0; // hauteur du pont (coordonnées du modèle)
+function makeShip(tier, skinId = S.skin, scale = .62, lvl = 0) {
   const sk = SKINS[skinId] || SKINS.classique; tier = clamp(tier, 1, 3);
   let name = shipNames.pirate[tier - 1];
   if (sk.model === 'ship-ghost') name = 'ship-ghost';
   if (sk.model === 'royal') name = shipNames.royal[tier - 1];
   const inner = M(name, scale);
-  if (sk.pal) inner.traverse(o => { if (!o.isMesh || !o.material.map) return; const part = /flag/.test(o.name) ? 'flag' : /sail/.test(o.name) ? 'sail' : 'hull'; const m = shipMat(skinId, part); if (m) o.material = m; });
+  const LP = lvl && !sk.pal && SHIPLV[lvl] && SHIPLV[lvl].pal; // skin classique : la couleur dépend du niveau
+  if (sk.pal || LP) inner.traverse(o => { if (!o.isMesh || !o.material.map) return; const part = /flag/.test(o.name) ? 'flag' : /sail/.test(o.name) ? 'sail' : 'hull'; const m = LP ? palMaterial(`shiplv:${lvl}`, LP) : shipMat(skinId, part); if (m) o.material = m; });
   ownMats(inner);
   const g = new THREE.Group(); inner.position.y = -.45; g.add(inner);
   g.userData = { inner, skin: skinId, phase: Math.random() * 6, noPal: true };
+  if (lvl) shipDecor(g, inner, name, lvl);
   return g;
+}
+/* navire du joueur selon le niveau du Quai */
+function makeLevelShip(l, skinId = S.skin, mul = 1) { const L = SHIPLV[clamp(l, 1, 5)]; return makeShip(L.tier, skinId, L.s * mul, l); }
+const SHIP_LEN = { 'ship-pirate-small': 4.3, 'ship-pirate-medium': 5.3, 'ship-pirate-large': 6.55, 'ship-small': 4.3, 'ship-medium': 5.3, 'ship-large': 6.55, 'ship-ghost': 5.3 };
+function glowSprite(col, sc = 1.5, k = 1.5) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(col).multiplyScalar(k), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })); s.scale.setScalar(sc); return s; }
+function goldCrown(r = 1) {
+  const g = new THREE.Group(), gm = pm('crownG', { color: '#ffd23f', metalness: 1, roughness: .2, emissive: '#b37400', emissiveIntensity: .9 });
+  const band = new THREE.Mesh(new THREE.CylinderGeometry(r, r * .92, r * .55, 16, 1, true), gm); band.material.side = THREE.DoubleSide; g.add(band);
+  for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2, sp = new THREE.Mesh(new THREE.ConeGeometry(r * .22, r * .7, 6), gm); sp.position.set(Math.cos(a) * r * .92, r * .6, Math.sin(a) * r * .92); g.add(sp);
+    const gem = new THREE.Mesh(new THREE.OctahedronGeometry(r * .13), pm('crownR' + (i % 2), { color: i % 2 ? '#2f8bff' : '#ff2244', emissive: i % 2 ? '#2f8bff' : '#ff2244', emissiveIntensity: 1.5 })); gem.position.set(Math.cos(a) * r * 1.0, 0, Math.sin(a) * r * 1.0); g.add(gem); }
+  g.add(glowSprite('#ffd23f', r * 5, 1.2)); return g;
+}
+/* équipements du navire, visibles de loin : lanternes, canons, figure de proue, hublots lumineux, couronne */
+function shipDecor(g, inner, name, l) {
+  const len = SHIP_LEN[name] || 5.3, D = SHIP_DECK, col = SHIPLV[l].col, add = (o) => { o.userData.noPal = true; inner.add(o); return o; };
+  // fanaux de poupe
+  if (l >= 2) [-1.3, 1.3].forEach(x => { const L = lantern(l >= 5 ? '#ffd23f' : l >= 4 ? '#c88bff' : '#ffb347'); L.scale.setScalar(1.3); L.position.set(x, D + .2, -len * .86); add(L); });
+  // canons sur les flancs
+  if (l >= 3) { const n = l === 3 ? 2 : l === 4 ? 3 : 4; for (let i = 0; i < n; i++) { const z = -len * .45 + i * (len * .9 / Math.max(1, n - 1)) * (n > 1 ? 1 : 0); for (const sgn of [-1, 1]) { const c = M('cannon', .9); c.position.set(sgn * 1.75, D - .1, z * .8); c.rotation.y = sgn * Math.PI / 2; add(c); } } }
+  // figure de proue dorée
+  if (l >= 3) { const fg = new THREE.Group(); const gm = goldTrim(); const b = new THREE.Mesh(new THREE.SphereGeometry(.45, 12, 10), gm); b.scale.set(1, 1.3, 1); fg.add(b); const sp = new THREE.Mesh(new THREE.ConeGeometry(.3, 1.6, 8), gm); sp.rotation.x = Math.PI / 2; sp.position.z = .9; fg.add(sp); fg.position.set(0, D + .3, len + .2); add(fg); }
+  // hublots lumineux
+  if (l >= 4) { const pg = new THREE.SphereGeometry(.17, 8, 6), pmat = pm('port' + l, { color: col, emissive: col, emissiveIntensity: 2.4 }); for (let i = 0; i < 7; i++) for (const sgn of [-1, 1]) { const m = new THREE.Mesh(pg, pmat); m.position.set(sgn * 2.3, 1.1, -len * .7 + i * len * 1.4 / 6); m.scale.set(.5, 1, 1); add(m); } }
+  // bannières supplémentaires
+  if (l >= 4) { const f = M(l >= 5 ? 'flag-pirate-high-pennant' : 'flag-pirate-pennant', 1.3); f.position.set(0, D, -len * .95); add(f); }
+  // couronne flottante + halo
+  if (l >= 5) { const cr = goldCrown(.9); cr.position.set(0, 11.4, 0); add(cr); cr.onBeforeRender = () => { cr.rotation.y = performance.now() * .0012; }; cr.children.forEach(ch => ch.onBeforeRender = () => { cr.rotation.y = performance.now() * .0012; cr.position.y = 11.4 + Math.sin(performance.now() * .002) * .25; }); }
+  // aura sur l'eau (niv. 4-5)
+  if (l >= 4) { const ring = new THREE.Mesh(new THREE.RingGeometry(1, 1.25, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(col).multiplyScalar(.9), transparent: true, opacity: .4, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide })); ring.rotation.x = -Math.PI / 2; ring.scale.set(inner.scale.x * 3.6, inner.scale.x * (len + 2.5), 1); ring.position.y = .06; ring.userData.noPal = true; g.add(ring); ring.onBeforeRender = () => { ring.material.opacity = .25 + Math.sin(performance.now() * .003) * .12; }; }
 }
 
 /* HOME ISLAND */
@@ -745,18 +785,137 @@ function buildCanon(l) {
   return finishLevel(g, c, l, P.top);
 }
 let homeShip = null;
+/* ---- décor du quai : cordages, bittes d'amarrage, sacs, grue, passerelle, matelots… ---- */
+const ropeMat = new THREE.MeshStandardMaterial({ color: '#c9a26a', roughness: .95 });
+function rope(a, b, sag = .5, r = .05) {
+  const pts = []; for (let i = 0; i <= 12; i++) { const t = i / 12, p = new V3().lerpVectors(a, b, t); p.y -= Math.sin(t * Math.PI) * sag; pts.push(p); }
+  const m = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 16, r, 5), ropeMat); m.castShadow = true; return m;
+}
+function bollard() { const g = new THREE.Group(); const p = new THREE.Mesh(new THREE.CylinderGeometry(.22, .26, .7, 8), pm('boll', { color: '#3b2a1c', roughness: .8 })); p.position.y = .35; p.castShadow = true; g.add(p); const cap = new THREE.Mesh(new THREE.CylinderGeometry(.3, .3, .12, 8), ironMat); cap.position.y = .72; g.add(cap); const coil = new THREE.Mesh(new THREE.TorusGeometry(.3, .07, 5, 14), ropeMat); coil.rotation.x = Math.PI / 2; coil.position.y = .5; g.add(coil); return g; }
+function ropeCoil() { const g = new THREE.Group(); for (let i = 0; i < 3; i++) { const t = new THREE.Mesh(new THREE.TorusGeometry(.42 - i * .07, .07, 5, 16), ropeMat); t.rotation.x = Math.PI / 2; t.position.y = .07 + i * .12; t.castShadow = true; g.add(t); } return g; }
+function sack(k = 1) { const m = new THREE.Mesh(new THREE.SphereGeometry(.42, 10, 8), pm('sack', { color: '#cdb27a', roughness: 1 })); m.scale.set(k, .8 * k, .85 * k); m.position.y = .3 * k; m.castShadow = true; const g = new THREE.Group(); g.add(m); const tie = new THREE.Mesh(new THREE.CylinderGeometry(.08, .14, .22, 6), pm('sackT', { color: '#8a6a3a' })); tie.position.y = .62 * k; g.add(tie); return g; }
+function banner(col, h = 3.4) {
+  const g = new THREE.Group(); const pole = new THREE.Mesh(new THREE.CylinderGeometry(.07, .09, h, 6), woodMat); pole.position.y = h / 2; pole.castShadow = true; g.add(pole);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(.14, 8, 6), goldTrim()); top.position.y = h + .1; g.add(top);
+  const cl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.7, 6, 4), pm('ban' + col, { color: col, roughness: .7, side: THREE.DoubleSide, emissive: col, emissiveIntensity: .15 }));
+  const pos = cl.geometry.attributes.position, base = Float32Array.from(pos.array); cl.position.set(.6, h - 1, 0); cl.castShadow = true; g.add(cl);
+  cl.onBeforeRender = () => { const t = performance.now() * .004; for (let i = 0; i < pos.count; i++) { const x = base[i * 3] + .55; pos.array[i * 3 + 2] = Math.sin(x * 3 - t) * .12 * x; } pos.needsUpdate = true; };
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(1.15, .1, .06), goldTrim()); trim.position.set(.6, h - .12, 0); g.add(trim);
+  return g;
+}
+/* matelots animés */
+const SKIN_C = ['#f1c27d', '#d9a066', '#a86b3c', '#7a4a2a'];
+function pirateNPC(i, opt = {}) {
+  const g = new THREE.Group(), body = new THREE.Group(); g.add(body);
+  const shirt = opt.shirt || ['#e8e2d0', '#c0392b', '#2f6fd8', '#f2f2f2', '#2e8b57'][i % 5];
+  const mk = (geo, col, x, y, z, o = {}) => { const m = new THREE.Mesh(geo, pm('npc' + col, { color: col, roughness: .8, ...o })); m.position.set(x, y, z); m.castShadow = true; body.add(m); return m; };
+  mk(new THREE.CylinderGeometry(.16, .2, .6, 8), '#3b2f2a', -.13, .3, 0); mk(new THREE.CylinderGeometry(.16, .2, .6, 8), '#3b2f2a', .13, .3, 0); // jambes
+  mk(new THREE.CapsuleGeometry(.32, .45, 4, 10), shirt, 0, .95, 0); // torse
+  if (i % 2 === 0) mk(new THREE.TorusGeometry(.31, .05, 5, 16).rotateX(Math.PI / 2), '#c0392b', 0, .9, 0); // rayure / ceinture
+  mk(new THREE.CylinderGeometry(.34, .34, .1, 12), '#2a1a10', 0, .72, 0); // ceinture
+  const armL = mk(new THREE.CapsuleGeometry(.1, .45, 3, 6), shirt, -.42, 1.0, 0), armR = mk(new THREE.CapsuleGeometry(.1, .45, 3, 6), shirt, .42, 1.0, 0);
+  armL.rotation.z = .25; armR.rotation.z = -.25;
+  const sk = SKIN_C[i % 4]; mk(new THREE.SphereGeometry(.27, 12, 10), sk, 0, 1.62, 0);
+  mk(new THREE.SphereGeometry(.05, 6, 4), '#111', -.09, 1.66, .24); mk(new THREE.SphereGeometry(.05, 6, 4), '#111', .09, 1.66, .24);
+  if (i % 3 === 1) mk(new THREE.CylinderGeometry(.13, .1, .12, 8), '#111', .1, 1.67, .2).rotation.x = Math.PI / 2; // bandeau d'œil
+  const hat = opt.hat || ['bandana', 'tricorne', 'bandana', 'none', 'tricorne'][i % 5];
+  if (hat === 'bandana') { mk(new THREE.SphereGeometry(.29, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), ['#d32f2f', '#1f4fa8', '#f2c12e'][i % 3], 0, 1.66, 0); }
+  if (hat === 'tricorne' || hat === 'captain') { const c = hat === 'captain'; const brim = mk(new THREE.CylinderGeometry(.5, .5, .06, 3), c ? '#1a1a2e' : '#1c1410', 0, 1.86, 0); brim.rotation.y = Math.PI / 6; mk(new THREE.CylinderGeometry(.22, .28, .3, 10), c ? '#1a1a2e' : '#1c1410', 0, 2.0, 0); if (c) { const t = new THREE.Mesh(new THREE.TorusGeometry(.27, .04, 5, 14), goldTrim()); t.rotation.x = Math.PI / 2; t.position.y = 1.9; body.add(t); const f = new THREE.Mesh(new THREE.ConeGeometry(.06, .5, 5), pm('plume', { color: '#ffffff' })); f.position.set(.15, 2.25, -.05); f.rotation.z = -.5; body.add(f); } }
+  if (opt.cargo) { const c = M('crate', .45); c.position.set(0, 1.25, .35); body.add(c); armL.rotation.x = armR.rotation.x = -1.2; }
+  const ph = i * 1.7, walk = opt.walk;
+  body.children[0].onBeforeRender = () => {
+    const t = performance.now() * .001 + ph;
+    if (walk) { const u = (Math.sin(t * .35) + 1) / 2; g.position.x = walk[0] + (walk[1] - walk[0]) * u; g.rotation.y = Math.cos(t * .35) > 0 ? Math.PI / 2 : -Math.PI / 2; body.position.y = Math.abs(Math.sin(t * 6)) * .08; if (!opt.cargo) { armL.rotation.x = Math.sin(t * 6) * .6; armR.rotation.x = -Math.sin(t * 6) * .6; } }
+    else { body.position.y = Math.sin(t * 2) * .03; if (opt.wave) armR.rotation.z = -2.4 + Math.sin(t * 6) * .4; body.rotation.y = Math.sin(t * .5) * .4; }
+  };
+  g.scale.setScalar(opt.k || 1); return g;
+}
+/* grue de chargement avec caisse qui se balance */
+function crane() {
+  const g = new THREE.Group(), add = (geo, x, y, z, m = woodMat) => { const o = new THREE.Mesh(geo, m); o.position.set(x, y, z); o.castShadow = true; g.add(o); return o; };
+  add(new THREE.BoxGeometry(.35, 4.2, .35), 0, 2.1, 0); add(new THREE.BoxGeometry(.6, .3, .6), 0, .15, 0, ironMat);
+  const arm = add(new THREE.BoxGeometry(3.4, .26, .26), 1.4, 4.05, 0); const brace = add(new THREE.BoxGeometry(.18, 1.9, .18), .65, 3.3, 0); brace.rotation.z = -.75;
+  const piv = new THREE.Group(); piv.position.set(2.9, 3.95, 0); g.add(piv);
+  const ln = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1.8, 4), ropeMat); ln.position.y = -.9; piv.add(ln);
+  const cr = M('crate', .7); cr.position.y = -2.25; piv.add(cr);
+  ln.onBeforeRender = () => { const t = performance.now() * .001; piv.rotation.z = Math.sin(t * 1.3) * .12; piv.rotation.x = Math.sin(t * .9) * .08; };
+  return g;
+}
+function shipNameFor(l) { return SHIPLV[clamp(l, 1, 5)].name; }
+const QUAI_NEW = [null, '', 'Brigantin Rouge (plus grand), lanternes, tonneaux, sacs, rambarde en cordage, 2 matelots',
+  'Frégate Azur avec canons et figure de proue dorée, ponton en T, grue de chargement, passerelle, drapeaux',
+  "Galion de Guerre violet avec hublots lumineux, entrepôt, canot, bannières, canon de quai, navire d'escorte",
+  "Vaisseau Royal d'Or couronné, phare, arche dorée, tapis royal, trésor sur le quai, 2 navires d'escorte"];
 function buildQuai(l) {
-  const g = new THREE.Group(), c = new THREE.Group();
-  const nP = l >= 2 ? 4 : 3;
-  for (let i = 0; i < nP; i++) { const d = M('structure-platform-dock', 1.3); d.position.set(i * 3.25, -.35, 0); c.add(d); }
-  c.add(at(M('barrel', .8), 3.2, 1.35, -.8));
-  c.add(at(M('crate', .8), 6.4, 1.35, .7));
-  if (l >= 2) [[1.6, 1.6], [4.85, 1.6], [8.1, 1.6]].slice(0, l >= 3 ? 3 : 2).forEach(([x, z]) => { const L = lantern(l >= 5 ? '#ffd23f' : l >= 4 ? '#c88bff' : l >= 3 ? '#5fb0ff' : '#ff8a3a'); L.position.set(x, 1.3, z); L.userData.noPal = true; c.add(L); });
-  if (l >= 3) { const f = M('flag-high-pennant', 1); f.position.set((nP - 1) * 3.25 + .9, 1.3, -1); c.add(f); }
-  if (l >= 4) { const rb = M('boat-row-large', 1.1); rb.position.set(5, -.2, -4.2); rb.rotation.y = .3; c.add(rb); }
-  if (l >= 5) { const lh = M('tower-complete-small', .7); lh.position.set((nP - 1) * 3.25 + 1.2, 1.2, 1.2); c.add(lh); const cr = crystal('#ffd23f', 1); cr.position.set((nP - 1) * 3.25 + 1.2, 1.2 + 6.4, 1.2); cr.userData.noPal = true; c.add(cr); }
-  const ship = makeShip(Math.min(3, l)); ship.position.set(7.5, 0, 6.6); ship.rotation.y = Math.PI / 2; c.add(ship);
-  c.userData.labelY = 5; c.userData.labelX = 4;
+  const g = new THREE.Group(), c = new THREE.Group(), P = 3.25, DY = 1.35;
+  const nP = [0, 3, 4, 5, 5, 6][l], end = (nP - 1) * P;
+  const put = (o, x, y, z, ry = 0) => { o.position.set(x, y, z); o.rotation.y = ry; c.add(o); return o; };
+  const deck = (o, x, z, ry = 0) => put(o, x, DY, z, ry);
+  for (let i = 0; i < nP; i++) put(M('structure-platform-dock', 1.3), i * P, -.35, 0);
+  // ponton en T et jetée latérale (côté opposé au navire)
+  if (l >= 3) put(M('structure-platform-dock', 1.3), end, -.35, -P);
+  if (l >= 4) { put(M('structure-platform-dock', 1.3), end, -.35, -2 * P); put(M('structure-platform-dock', 1.3), end - P, -.35, -P); }
+  if (l >= 5) { put(M('structure-platform-dock', 1.3), end - P, -.35, -2 * P); put(M('structure-platform-dock', 1.3), end + P, -.35, 0); }
+  // --- navire ---
+  const L = SHIPLV[l], ship = makeLevelShip(l); const shipX = Math.max(5.5, end * .55 + 1.5), shipZ = 1.7 + .5 + 2.4 * L.s;
+  ship.position.set(shipX, 0, shipZ); ship.rotation.y = Math.PI / 2; c.add(ship);
+  const shipDeckY = -.45 + SHIP_DECK * L.s;
+  // bittes d'amarrage + amarres vers le navire
+  const len = (SHIP_LEN[ship.userData.inner.name] || 5.3) * L.s;
+  [shipX - len * .7, shipX + len * .7].forEach((x, i) => { deck(bollard(), x, 1.3); c.add(rope(new V3(x, DY + .55, 1.3), new V3(shipX + (i ? 1 : -1) * len * .55, shipDeckY + .2, shipZ - 1.9 * L.s), .5)); });
+  // de base : tonneau, caisse, rouleau de cordage, 1 matelot
+  deck(M('barrel', .8), 1.4, -.9); deck(M('crate', .85), 2.6, -1.0, .3); deck(ropeCoil(), 4.2, -1.0);
+  deck(pirateNPC(0, { wave: true }), 3.3, .2, .6);
+  if (l >= 2) {
+    // rambarde en cordage côté mer
+    const posts = []; for (let x = 0; x <= end + .1; x += 1.6) { const pst = deck(new THREE.Mesh(new THREE.CylinderGeometry(.08, .1, 1.1, 6), woodMat), x - 1, -1.5); pst.position.y = DY + .55; pst.castShadow = true; posts.push(x - 1); }
+    for (let i = 0; i < posts.length - 1; i++) c.add(rope(new V3(posts[i], DY + 1.0, -1.5), new V3(posts[i + 1], DY + 1.0, -1.5), .22, .035));
+    // lanternes
+    const lc = l >= 5 ? '#ffd23f' : l >= 4 ? '#c88bff' : l >= 3 ? '#5fb0ff' : '#ff8a3a';
+    for (let x = .2, k = 0; x <= end + .1 && k < l + 1; x += P * .9, k++) { const Ln = lantern(lc); Ln.scale.setScalar(1.15); deck(Ln, x, 1.45); }
+    // pile de tonneaux + caisses + sacs
+    deck(M('barrel', .75), -.2, -.6); deck(M('barrel', .75), .5, -1.1); const b3 = deck(M('barrel', .7), .15, -.85); b3.position.y = DY + .95;
+    deck(M('crate', .8), 5.6, -1.0, .1); const c2 = deck(M('crate', .7), 5.6, -1.0, .5); c2.position.y = DY + .65; deck(M('crate', .75), 6.6, -.9, -.2);
+    deck(sack(), 7.6, -1.0); deck(sack(.85), 8.2, -.6); deck(sack(.9), 7.9, -1.1).position.y = DY + .35;
+    deck(pirateNPC(1, { walk: [1, end - .5], cargo: true }), 2, .3);
+    deck(M('flag-pennant', 1), end + 1.3, -1.3);
+  }
+  if (l >= 3) {
+    // grue, passerelle vers le navire, drapeaux, bouteilles, boulets
+    deck(crane(), end - .3, -P - .9, Math.PI);
+    const gw = new THREE.Group(); const gl = Math.hypot(shipZ - 1.9 * L.s - 1.5, DY - shipDeckY - .1) + .4;
+    const plank = new THREE.Mesh(new THREE.BoxGeometry(1.3, .12, gl), pm('gway', { color: '#8a5a34', roughness: .85 })); plank.castShadow = true; plank.receiveShadow = true; gw.add(plank);
+    for (let i = 0; i < 6; i++) { const sl = new THREE.Mesh(new THREE.BoxGeometry(1.3, .08, .1), woodMat); sl.position.set(0, .09, -gl / 2 + .3 + i * (gl - .6) / 5); gw.add(sl); }
+    [-.62, .62].forEach(x => gw.add(rope(new V3(x, .8, -gl / 2), new V3(x, .8, gl / 2), .15, .035)));
+    if (l >= 5) { const cp = new THREE.Mesh(new THREE.BoxGeometry(.9, .03, gl), pm('carpet', { color: '#b0102a', roughness: .9 })); cp.position.y = .08; gw.add(cp); }
+    const z0 = 1.5, z1 = shipZ - 1.9 * L.s; gw.position.set(shipX, (DY + shipDeckY + .2) / 2, (z0 + z1) / 2); gw.rotation.x = Math.atan2(DY - shipDeckY - .2, z1 - z0); c.add(gw);
+    deck(M('flag-high-pennant', 1), end + 1.1, -P - 1.1); deck(M('flag-pirate', 1), -.6, 1.3);
+    deck(M('crate-bottles', .8), end - .6, -P + .6, .4);
+    for (let i = 0; i < 6; i++) { const b = M('cannon-ball', .7); deck(b, end - 2.2 + (i % 3) * .38, -P + .9 + Math.floor(i / 3) * .38); if (i === 5) b.position.y = DY + .25; }
+    deck(pirateNPC(2), end - 1.3, -P - .3, 2.2); deck(ropeCoil(), end + .9, -P + .4);
+  }
+  if (l >= 4) {
+    // entrepôt, canot, bannières, canon de quai, escorte
+    const wh = new THREE.Group(); wh.add(M('structure', 1.15)); wh.add(M('structure-roof', 1.2)); deck(wh, end, -2 * P - .2, Math.PI);
+    put(M('boat-row-large', 1.1), end - 2 * P + .4, -.2, -2 * P - .4, .4);
+    [[.6, -1.6], [end + .4, 1.4], [end - P, -P - 1.4]].forEach(([x, z]) => deck(banner(l >= 5 ? '#c8102e' : '#6a2bd0'), x, z));
+    const dc = M('cannon', 1.2); deck(dc, end + 1.2, .2, Math.PI / 2);
+    const esc = makeShip(1, S.skin, .42, Math.min(l - 1, 4)); esc.position.set(end + 7, 0, -2 * P - 2); esc.rotation.y = .3; c.add(esc); g.userData.esc = [esc];
+    deck(pirateNPC(3, { hat: 'tricorne' }), end - P + .4, -2 * P + .6, -.8);
+  }
+  if (l >= 5) {
+    // phare, arche dorée, trésor, capitaine
+    const lh = M('tower-complete-small', .7); deck(lh, end + P + .2, -.4); const cr = crystal('#ffd23f', 1); cr.position.set(end + P + .2, DY + 6.4, -.4); c.add(cr);
+    const arch = new THREE.Group(), st = pm('p5', { color: '#fffaf0', roughness: .35, metalness: .05, flatShading: true });
+    [-1.7, 1.7].forEach(z => { const pl = new THREE.Mesh(new THREE.BoxGeometry(.5, 3.6, .5), st); pl.position.set(0, 1.8, z); pl.castShadow = true; arch.add(pl); const cap = new THREE.Mesh(new THREE.BoxGeometry(.66, .2, .66), goldTrim()); cap.position.set(0, 3.65, z); arch.add(cap); });
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(.55, .45, 4.0), goldTrim()); beam.position.y = 3.9; arch.add(beam); const ac = goldCrown(.45); ac.position.y = 4.55; arch.add(ac);
+    deck(arch, -.9, 0);
+    const cp = new THREE.Mesh(new THREE.BoxGeometry(end + 1.5, .03, .9), pm('carpet', { color: '#b0102a', roughness: .9 })); cp.position.set(end / 2 - .2, DY + .02, .3); c.add(cp);
+    const ch = M('chest', 1.1); deck(ch, end - P + .3, -2 * P + .3, .6); const cpile = coinPile(70, .9, .6, 7); cpile.position.set(end - P - .9, DY, -2 * P + .9); c.add(cpile);
+    deck(pirateNPC(4, { hat: 'captain', shirt: '#7a1020', k: 1.15 }), shipX - 1, .9, Math.PI);
+    const esc2 = makeShip(1, S.skin, .42, 3); esc2.position.set(end + 9, 0, 5); esc2.rotation.y = -.4; c.add(esc2); g.userData.esc.push(esc2);
+  }
+  c.userData.labelY = Math.max(5, 9.5 * L.s); c.userData.labelX = shipX;
   finishLevel(g, c, l, 0); g.userData.ship = ship; return g;
 }
 const BUILDERS = { tresor: buildTresor, canon: buildCanon, quai: buildQuai };
@@ -837,6 +996,7 @@ function refreshHomeLabels() {
   for (const k of Object.keys(BUILD)) {
     const L = homeLabels[k]; if (!L) continue; const l = S.b[k];
     const lv = L.el.querySelector('.bl-lv'); lv.textContent = l; lv.style.background = `radial-gradient(circle at 35% 30%,#fff,${LV[l].col} 55%,#1a1030)`; L.el.querySelector('.bl-name').style.boxShadow = `0 0 0 2px ${LV[l].col},0 0 12px ${LV[l].col}88,0 4px 10px rgba(0,0,0,.5)`;
+    if (k === 'quai') { let sn = L.el.querySelector('.bl-ship'); if (!sn) { sn = document.createElement('div'); sn.className = 'bl-ship'; L.el.insertBefore(sn, L.el.querySelector('.bl-up')); } sn.textContent = '⛵ ' + shipNameFor(l); sn.style.borderColor = SHIPLV[l].col; }
     const up = L.el.querySelector('.bl-up');
     up.textContent = l < 5 && S.gold >= BUILD[k].cost[l + 1] ? '▲ Amélioration dispo' : '';
   }
@@ -849,6 +1009,7 @@ function updTweens(dt) { for (let i = tweens.length - 1; i >= 0; i--) { const w 
 const wait = s => new Promise(r => tween(s, () => { }, r));
 
 let mode = 'loading';
+const HOME_T = new V3(5, 2, 3.5); // centre de vue : île + quai/navire
 const camState = { target: new V3(0, 2, 0), az: .62, pol: .96, dist: 100 };
 const camGoal = { target: new V3(0, 2, 0), az: .62, pol: .96, dist: 100 };
 let cine = null;
@@ -1074,7 +1235,7 @@ function buildRaid(en) {
     const end = new V3(ENEMY.x + Math.cos(a) * r, 0, ENEMY.z + Math.sin(a) * r);
     const off = clamp(Math.hypot(ENEMY.x, ENEMY.z) - ENEMY.R - 70, 28, 70);
     const start = end.clone().add(new V3(Math.cos(a0), 0, Math.sin(a0)).multiplyScalar(off + i * 6));
-    const sh = makeShip(tier, S.skin, .72); sh.position.copy(start);
+    const sh = makeLevelShip(S.b.quai, S.skin, (.62 + S.b.quai * .04) / SHIPLV[clamp(S.b.quai, 1, 5)].s); sh.position.copy(start);
     const head = Math.atan2(-Math.cos(a0), -Math.sin(a0));
     let tang = Math.atan2(-Math.sin(a), Math.cos(a)); if (Math.abs(angLerp(head, tang, 1) - head) > Math.PI / 2) tang += Math.PI;
     sh.rotation.y = head; scene.add(sh);
@@ -1287,7 +1448,7 @@ async function returnHome() {
     save(); refreshRivalLabels();
   }
   $('#rhud').classList.add('hidden'); $('#letterbox').classList.remove('on');
-  setCamNow(new V3(0, 2, 0), .62, .96, baseDist()); applyCam();
+  setCamNow(HOME_T, .62, .96, baseDist()); applyCam();
   mode = 'home'; $('#hud').classList.remove('hidden');
   await flashTo(0, .5);
   if (rew) {
@@ -1354,7 +1515,7 @@ const ic = (id, cls = '') => `<svg class="${cls}"><use href="#${id}"/></svg>`;
 
 /* thumbnails */
 let thumbR = null, thumbScene, thumbCam;
-function thumb(obj, w = 300, h = 260, az = .75, el = .32) {
+function thumb(obj, w = 300, h = 260, az = .75, el = .32, fixRad = 0) {
   if (!thumbR) {
     thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     thumbR.toneMapping = THREE.ACESFilmicToneMapping; thumbR.toneMappingExposure = .92;
@@ -1367,7 +1528,7 @@ function thumb(obj, w = 300, h = 260, az = .75, el = .32) {
   thumbR.setSize(w, h); thumbCam.aspect = w / h; thumbCam.updateProjectionMatrix();
   const holder = new THREE.Group(); holder.add(obj); thumbScene.add(holder);
   const box = new THREE.Box3().setFromObject(holder), c = box.getCenter(new V3()), sz = box.getSize(new V3());
-  const rad = sz.length() * .5, dist = rad / Math.sin(THREE.MathUtils.degToRad(14)) * .92;
+  const rad = fixRad || sz.length() * .5, dist = rad / Math.sin(THREE.MathUtils.degToRad(14)) * .92;
   thumbCam.position.set(c.x + Math.sin(az) * Math.cos(el) * dist, c.y + Math.sin(el) * dist, c.z + Math.cos(az) * Math.cos(el) * dist); thumbCam.lookAt(c);
   thumbR.render(thumbScene, thumbCam);
   const url = thumbR.domElement.toDataURL('image/png');
@@ -1488,6 +1649,13 @@ function openSkinView(id) {
 }
 
 /* upgrade */
+const SHIP_IMG = {};
+function shipLvImg(l) { const k = l + ':' + S.skin; if (!SHIP_IMG[k]) { const sh = makeLevelShip(l); sh.rotation.y = -.5; SHIP_IMG[k] = thumb(sh, 300, 260, 1.9, .28, 8); } return SHIP_IMG[k]; }
+function shipCmpHTML(l, max) {
+  const a = SHIPLV[l], b = SHIPLV[Math.min(5, l + 1)];
+  return `<div class="ship-cmp-h">⛵ TON NAVIRE</div><div class="up-cmp ship"><div class="up-side"><div class="up-img" style="--lc:${a.col}"><img src="${shipLvImg(l)}"></div><div class="up-tag" style="--lc:${a.col}">${a.name}<small>taille ×${(a.s / SHIPLV[1].s).toFixed(1)}</small></div></div>
+   ${max ? '' : `<div class="up-arrow">➜</div><div class="up-side nxt"><div class="up-img" style="--lc:${b.col}"><img src="${shipLvImg(l + 1)}"><i class="up-new">NOUVEAU NAVIRE</i></div><div class="up-tag" style="--lc:${b.col}">${b.name}<small>taille ×${(b.s / SHIPLV[1].s).toFixed(1)}</small></div></div>`}</div><div class="ship-cmp-h">⚓ TON QUAI</div>`;
+}
 function openUpgrade(key) {
   const B = BUILD[key], l = S.b[key], max = l >= 5;
   const img = thumb(BUILDERS[key](l), 260, 260, .8, .45), nimg = l < 5 ? thumb(BUILDERS[key](l + 1), 260, 260, .8, .45) : null;
@@ -1495,9 +1663,9 @@ function openUpgrade(key) {
   const stats = B.stats(l).map(([n, cur, nxt, top]) => `<div class="stat"><div class="stat-top"><span>${n}</span><span>${fmt(cur)}${!max ? ` <b>+${fmt(nxt - cur)}</b>` : ''}</span></div><div class="sbar">${!max ? `<div class="nxt" style="width:${nxt / top * 100}%"></div>` : ''}<div class="cur" style="width:${cur / top * 100}%"></div></div></div>`).join('');
   const cost = B.cost[l + 1];
   openModal(`${closeBtn}<div class="p-head"><h2>${B.name}</h2><p>Niveau ${l} / 5</p></div><div class="p-body">
-   <div class="up-cmp"><div class="up-side"><div class="up-img" style="--lc:${cur.col}"><img src="${img}" style="transform:scale(${(cur.scale / nx.scale * .92).toFixed(3)})"></div><div class="up-tag" style="--lc:${cur.col}">Niv. ${l}<small>${cur.name}</small></div></div>
+   ${key === 'quai' ? shipCmpHTML(l, max) : ''}<div class="up-cmp"><div class="up-side"><div class="up-img" style="--lc:${cur.col}"><img src="${img}" style="transform:scale(${(cur.scale / nx.scale * .92).toFixed(3)})"></div><div class="up-tag" style="--lc:${cur.col}">Niv. ${l}<small>${cur.name}</small></div></div>
     ${max ? '' : `<div class="up-arrow">➜</div><div class="up-side nxt"><div class="up-img" style="--lc:${nx.col}"><img src="${nimg}"><i class="up-new">NOUVEAU LOOK</i></div><div class="up-tag" style="--lc:${nx.col}">Niv. ${l + 1}<small>${nx.name}</small></div></div>`}</div>
-   <div class="up-desc">${B.desc}${max ? '' : ` <b style="color:${nx.col}">Niveau ${l + 1} : nouvelles couleurs, bâtiment plus grand et nouveaux ornements.</b>`}</div>
+   <div class="up-desc">${B.desc}${max ? '' : key === 'quai' ? ` <b style="color:${nx.col}">Niveau ${l + 1} : ${QUAI_NEW[l + 1]}.</b>` : ` <b style="color:${nx.col}">Niveau ${l + 1} : nouvelles couleurs, bâtiment plus grand et nouveaux ornements.</b>`}</div>
    ${stats}<div class="lvl-dots">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}</div>
    ${max ? `<div class="maxed">Niveau maximum atteint 👑</div>` : `<button class="btn btn-green wide" id="upGo">${ic('i-hammer')} Améliorer &nbsp;${ic('i-coin')} ${fmt(cost)}</button>`}
    ${key === 'tresor' ? `<div style="height:10px"></div><button class="btn btn-gold wide" id="upCol">${ic('i-coin')} Récolter ${fmt(Math.floor(S.stored))}</button>` : ''}
@@ -1506,13 +1674,20 @@ function openUpgrade(key) {
     if (S.gold < cost) { toast(`Il te manque ${fmt(cost - S.gold)} pièces d'or`, true); return; }
     S.gold -= cost; S.b[key]++; addXP(40 * S.b[key]); save(); closeModal();
     placeBuilding(key, true); SFX.upgrade(); refreshHomeLabels();
-    toast(`${B.name} — niveau ${S.b[key]} : ${LV[S.b[key]].name} !`);
-    const w = wpos(homeB[key]); camGoal.target.set(w.x * .5, 2, w.z * .5);
-    setTimeout(() => camGoal.target.set(0, 2, 0), 1800);
+    const nl = S.b[key];
+    toast(key === 'quai' ? `⛵ Nouveau navire : <b>${shipNameFor(nl)}</b> + quai agrandi !` : `${B.name} — niveau ${nl} : ${LV[nl].name} !`);
+    showBanner(`NIVEAU ${nl}`, key === 'quai' ? shipNameFor(nl).toUpperCase() : LV[nl].name.toUpperCase());
+    focusBuilding(key, 3.6);
   });
+  if (QS.has('upgo') && go) setTimeout(() => go.click(), 800);
   const col = $('#upCol'); if (col) col.addEventListener('click', () => { closeModal(); collect(); });
 }
 
+function focusBuilding(key, hold = 3.4) {
+  const o = key === 'quai' && homeShip ? homeShip : homeB[key]; if (!o) return; const w = wpos(o);
+  const prev = camGoal.dist; camGoal.target.set(w.x, 3, w.z); camGoal.dist = clamp(baseDist() * (key === 'quai' ? .46 + S.b.quai * .05 : .46), zMin(), zMax()); userMoved = performance.now() + hold * 1000;
+  setTimeout(() => { camGoal.target.copy(HOME_T); camGoal.dist = Math.max(prev, baseDist() * .9); }, hold * 1000);
+}
 /* ---------------- CARTE DES MERS : choisir l'île à attaquer ---------------- */
 let mapSel = 0;
 function islandPathD(I, R) { let d = ''; for (let j = 0; j <= 56; j++) { const a = j / 56 * Math.PI * 2, r = shoreR({ ...I, R }, a); d += (j ? 'L' : 'M') + (I.x + Math.cos(a) * r).toFixed(1) + ' ' + (I.z + Math.sin(a) * r).toFixed(1); } return d + 'Z'; }
@@ -1757,6 +1932,53 @@ function rollChest(type) {
   else { r.gold = Math.round(rand(15000, 21000) / 100) * 100; r.gems = Math.floor(rand(100, 151)); r.barrels = 3; const lock = Object.keys(SKINS).filter(k => !S.owned.includes(k)); if (lock.length) r.skin = lock[Math.floor(Math.random() * lock.length)]; else r.gems += 200; }
   return r;
 }
+/* ---- VFX coffre : canvas plein écran (pluie d'or, feux d'artifice, étincelles, rayons, onde de choc) ---- */
+function mkSprite(sz, draw) { const c = document.createElement('canvas'); c.width = c.height = sz; draw(c.getContext('2d'), sz); return c; }
+const CF_COIN = mkSprite(64, (g, s) => { const r = s / 2 - 2; const gr = g.createRadialGradient(s * .38, s * .35, 2, s / 2, s / 2, r); gr.addColorStop(0, '#fffbe0'); gr.addColorStop(.35, '#ffd84a'); gr.addColorStop(.85, '#d18a12'); gr.addColorStop(1, '#7a4a06'); g.fillStyle = gr; g.beginPath(); g.arc(s / 2, s / 2, r, 0, 7); g.fill(); g.strokeStyle = '#8a5508'; g.lineWidth = 3; g.beginPath(); g.arc(s / 2, s / 2, r * .7, 0, 7); g.stroke(); g.fillStyle = '#9a6008'; g.font = `bold ${s * .42}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('$', s / 2, s / 2 + 2); });
+const CF_GEMS = ['#59f0ff', '#ff5fd0', '#8eff6a', '#c27bff'].map(col => mkSprite(64, (g, s) => { g.fillStyle = col; g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.moveTo(s * .2, s * .38); g.lineTo(s * .35, s * .18); g.lineTo(s * .65, s * .18); g.lineTo(s * .8, s * .38); g.lineTo(s * .5, s * .85); g.closePath(); g.fill(); g.stroke(); g.fillStyle = 'rgba(255,255,255,.65)'; g.beginPath(); g.moveTo(s * .35, s * .2); g.lineTo(s * .5, s * .38); g.lineTo(s * .25, s * .38); g.fill(); }));
+const CF_SPARK = mkSprite(64, (g, s) => { const gr = g.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2); gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(.2, 'rgba(255,255,255,.8)'); gr.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = gr; g.fillRect(0, 0, s, s); });
+const CF_STAR = mkSprite(64, (g, s) => { g.translate(s / 2, s / 2); g.fillStyle = '#fff'; g.beginPath(); for (let i = 0; i < 8; i++) { const r = i % 2 ? s * .08 : s * .48, a = i * Math.PI / 4; g.lineTo(Math.cos(a) * r, Math.sin(a) * r); } g.fill(); });
+const tintCache = {};
+function tinted(img, col) { const k = col; if (tintCache[k]) return tintCache[k]; const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d'); g.drawImage(img, 0, 0); g.globalCompositeOperation = 'source-atop'; g.fillStyle = col; g.fillRect(0, 0, 64, 64); g.globalCompositeOperation = 'destination-in'; g.drawImage(img, 0, 0); return tintCache[k] = c; }
+function chestVFX(host, power = 1) {
+  const cv = document.createElement('canvas'); cv.className = 'cf-cv'; host.appendChild(cv);
+  const dpr = Math.min(1.5, devicePixelRatio || 1); let W = innerWidth, H = innerHeight; cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext('2d'); g.scale(dpr, dpr);
+  const P = [], rings = [], beams = []; let run = true, t0 = performance.now(), rainUntil = 0, rainRate = 0, last = t0, shake = 0;
+  const add = o => { if (P.length < 1400) P.push(Object.assign({ x: 0, y: 0, vx: 0, vy: 0, g: 600, life: 1, age: 0, sz: 10, rot: 0, vr: 0, add: true, drag: .985, img: CF_SPARK, spin: 0 }, o)); };
+  const api = {
+    burst(x, y, n = 120, cols = ['#ffd54a', '#fff2b0', '#ffae2e']) { for (let i = 0; i < n; i++) { const a = Math.random() * 6.283, v = rand(200, 900) * power; add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 250, g: 700, life: rand(.7, 1.6), sz: rand(6, 16), img: tinted(CF_SPARK, cols[i % cols.length]), trail: true }); } },
+    coins(x, y, n = 40) { for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + rand(-1.1, 1.1), v = rand(500, 1200) * power; add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 1500, life: rand(1.6, 2.6), sz: rand(22, 38), img: CF_COIN, add: false, spin: rand(6, 14), rot: Math.random() * 6, drag: .995 }); } },
+    gems(x, y, n = 18) { for (let i = 0; i < n; i++) { const a = -Math.PI / 2 + rand(-1.3, 1.3), v = rand(500, 1100) * power; add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 1300, life: rand(1.6, 2.4), sz: rand(22, 34), img: CF_GEMS[i % 4], add: false, vr: rand(-6, 6), drag: .995 }); } },
+    rain(dur, rate) { rainUntil = performance.now() + dur * 1000; rainRate = rate; },
+    firework(x, y, col) { rings.push({ x, y, r: 0, vr: 700, life: .4, age: 0, col, w: 5 }); for (let i = 0; i < 70; i++) { const a = i / 70 * 6.283, v = rand(260, 420) * (.8 + power * .25); add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 220, life: rand(1, 1.5), sz: rand(8, 13), img: tinted(CF_SPARK, col), drag: .975, trail: true, twinkle: true }); } SFX.firework && SFX.firework(); },
+    rocket(col, delay = 0) { setTimeout(() => { if (!run) return; const x = rand(W * .15, W * .85), ty = rand(H * .12, H * .4); add({ x, y: H + 10, vx: rand(-60, 60), vy: -(H + 10 - ty) * 1.9, g: 0, life: .55, sz: 12, img: tinted(CF_SPARK, '#fff3c0'), trail: true, drag: 1, onDie: p => api.firework(p.x, p.y, col) }); }, delay); },
+    shock(x, y, col = '#fff6c8') { rings.push({ x, y, r: 10, vr: 1900, life: .55, age: 0, col, w: 26 }); },
+    beams(x, y, col, n = 9) { for (let i = 0; i < n; i++) beams.push({ x, y, a: i / n * 6.283, w: rand(.08, .16), col, len: Math.hypot(W, H) }); },
+    shake(v) { shake = Math.max(shake, v); },
+    stop() { run = false; cv.remove(); }
+  };
+  function frame(now) {
+    if (!run) return; const dt = Math.min(.05, (now - last) / 1000); last = now;
+    g.clearRect(0, 0, W, H);
+    // rayons divins
+    if (beams.length) { g.save(); g.globalCompositeOperation = 'lighter'; const T = now * .00025; for (const b of beams) { const a = b.a + T; g.save(); g.translate(b.x, b.y); g.rotate(a); const gr = g.createLinearGradient(0, 0, b.len, 0); gr.addColorStop(0, b.col); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.fillStyle = gr; g.globalAlpha = .35 + .15 * Math.sin(now * .003 + b.a * 3); g.beginPath(); g.moveTo(0, 0); g.lineTo(b.len, -b.len * b.w); g.lineTo(b.len, b.len * b.w); g.closePath(); g.fill(); g.restore(); } g.restore(); }
+    if (now < rainUntil) for (let i = 0; i < rainRate * dt; i++) { const gem = Math.random() < .15 * power; add({ x: rand(0, W), y: -40, vx: rand(-40, 40), vy: rand(150, 400), g: 900, life: 2.6, sz: rand(20, 34), img: gem ? CF_GEMS[i % 4] : CF_COIN, add: false, spin: gem ? 0 : rand(6, 14), vr: gem ? rand(-4, 4) : 0, rot: Math.random() * 6, drag: 1 }); }
+    for (let i = rings.length - 1; i >= 0; i--) { const r = rings[i]; r.age += dt; r.r += r.vr * dt; const k = 1 - r.age / r.life; if (k <= 0) { rings.splice(i, 1); continue; } g.save(); g.globalCompositeOperation = 'lighter'; g.strokeStyle = r.col; g.globalAlpha = k; g.lineWidth = (r.w || 10) * k; g.beginPath(); g.arc(r.x, r.y, r.r, 0, 7); g.stroke(); g.restore(); }
+    for (let i = P.length - 1; i >= 0; i--) {
+      const p = P[i]; p.age += dt; if (p.age >= p.life || p.y > H + 80) { P.splice(i, 1); p.onDie && p.onDie(p); continue; }
+      p.vx *= p.drag; p.vy = p.vy * p.drag + p.g * dt; const ox = p.x, oy = p.y; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += (p.vr || 0) * dt;
+      const k = 1 - p.age / p.life, al = p.add ? Math.min(1, k * 1.6) * (p.twinkle ? (.5 + .5 * Math.sin(p.age * 40 + i)) : 1) : Math.min(1, k * 3);
+      g.globalCompositeOperation = p.add ? 'lighter' : 'source-over'; g.globalAlpha = al;
+      if (p.trail) { g.strokeStyle = 'rgba(255,220,140,.5)'; g.lineWidth = p.sz * .25; g.beginPath(); g.moveTo(ox - p.vx * .04, oy - p.vy * .04); g.lineTo(p.x, p.y); g.stroke(); }
+      const s = p.sz; g.save(); g.translate(p.x, p.y); g.rotate(p.rot); if (p.spin) g.scale(Math.abs(Math.cos(p.age * p.spin)) * .9 + .1, 1); g.drawImage(p.img, -s / 2, -s / 2, s, s); g.restore();
+    }
+    g.globalAlpha = 1; g.globalCompositeOperation = 'source-over';
+    if (shake > .2) { host.style.transform = `translate(${rand(-shake, shake)}px,${rand(-shake, shake)}px) rotate(${rand(-shake, shake) * .04}deg)`; shake *= Math.pow(.02, dt); } else if (host.style.transform) host.style.transform = '';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+  return api;
+}
 let chestBusy = false;
 function openChest(type, onDone) {
   if (chestBusy) return; chestBusy = true;
@@ -1770,33 +1992,45 @@ function openChest(type, onDone) {
   musicDuck(.12); SFX.chestAppear();
   const ch = el.querySelector('#cfChest');
   let opened = false;
+  const power = { bois: .8, argent: 1, or: 1.25, legendaire: 1.6 }[type] || 1, beamCol = { bois: 'rgba(255,190,90,.55)', argent: 'rgba(150,215,255,.6)', or: 'rgba(255,215,90,.7)', legendaire: 'rgba(210,140,255,.75)' }[type];
+  const fx = chestVFX(el, power); el._fx = fx;
+  const fwCols = type === 'legendaire' ? ['#d38bff', '#59f0ff', '#ff5fd0', '#ffd54a'] : type === 'argent' ? ['#9ad8ff', '#ffffff', '#59f0ff', '#ffd54a'] : ['#ffd54a', '#ff7a3a', '#fff2b0', '#ff4d6d'];
+  // avant ouverture : étincelles qui tournent autour du coffre
+  const idle = setInterval(() => { if (opened) return; const r = ch.getBoundingClientRect(); const a = Math.random() * 6.28; fx.burst(r.left + r.width / 2 + Math.cos(a) * r.width * .45, r.top + r.height * .55 + Math.sin(a) * r.height * .3, 3, fwCols); }, 120);
   ch.addEventListener('click', async () => {
-    if (opened) return; opened = true;
+    if (opened) return; opened = true; clearInterval(idle);
     el.querySelector('#cfSub').textContent = '…';
-    ch.classList.add('shake'); SFX.drumroll(1.3);
-    await new Promise(r => setTimeout(r, 650)); ch.classList.replace('shake', 'shake2');
-    el.querySelector('.cf-glow').style.transform = 'scale(1.6)';
-    await new Promise(r => setTimeout(r, 650));
+    const rr0 = ch.getBoundingClientRect(), cx = rr0.left + rr0.width / 2, cy = rr0.top + rr0.height * .45;
+    ch.classList.add('shake'); SFX.drumroll(1.3); fx.shake(4);
+    const charge = setInterval(() => { fx.burst(cx + rand(-60, 60), cy + rand(-20, 60), 6, fwCols); fx.shake(5 * power); }, 90);
+    await new Promise(r => setTimeout(r, 650)); ch.classList.replace('shake', 'shake2'); fx.shake(9 * power);
+    el.querySelector('.cf-glow').style.transform = 'scale(1.9)';
+    await new Promise(r => setTimeout(r, 650)); clearInterval(charge);
     ch.classList.remove('shake2'); ch.classList.add('open');
-    el.querySelector('.cf-flash').classList.add('go'); el.querySelector('.cf-beam').classList.add('on');
-    SFX.chestOpen();
-    const rr = ch.getBoundingClientRect(); const cx = rr.left + rr.width / 2, cy = rr.top + rr.height * .45;
-    confetti(cx, cy); setTimeout(() => confetti(cx, cy), 250);
-    el.querySelector('#cfSub').textContent = 'Butin récupéré !';
+    el.querySelector('.cf-flash').classList.add('go'); el.querySelector('.cf-beam').classList.add('on'); el.classList.add('opened');
+    SFX.chestOpen(); SFX.boom && SFX.boom();
+    fx.shake(22 * power); fx.shock(cx, cy); setTimeout(() => fx.shock(cx, cy, beamCol), 120);
+    fx.beams(cx, cy, beamCol, type === 'legendaire' ? 14 : 10);
+    fx.burst(cx, cy, Math.round(220 * power), fwCols); fx.coins(cx, cy, Math.round(45 * power)); if (rew.gems || type !== 'bois') fx.gems(cx, cy, Math.round(14 * power));
+    fx.rain(type === 'bois' ? 2.5 : 4.5, 40 * power);
+    const nR = type === 'legendaire' ? 9 : type === 'or' ? 7 : type === 'argent' ? 5 : 3; for (let i = 0; i < nR; i++) fx.rocket(fwCols[i % fwCols.length], 250 + i * 330);
+    confetti(cx, cy); setTimeout(() => confetti(cx, cy), 250); setTimeout(() => SFX.coinRain && SFX.coinRain(), 200); setTimeout(() => SFX.fanfare(), 350);
+    el.querySelector('#cfSub').textContent = type === 'legendaire' ? '✨ BUTIN LÉGENDAIRE ! ✨' : 'Butin récupéré !';
     const cards = [];
     if (rew.gold) cards.push(`<div class="cf-card">${ic('i-coin')}<b>+${fmt(rew.gold)}</b><small>Or</small></div>`);
-    if (rew.gems) cards.push(`<div class="cf-card">${ic('i-gem')}<b>+${rew.gems}</b><small>Gemmes</small></div>`);
+    if (rew.gems) cards.push(`<div class="cf-card gem">${ic('i-gem')}<b>+${rew.gems}</b><small>Gemmes</small></div>`);
     if (rew.barrels) cards.push(`<div class="cf-card">${ic('i-barrel')}<b>×${rew.barrels}</b><small>Barils</small></div>`);
     if (rew.skin) cards.push(`<div class="cf-card leg"><img src="${shipThumb(rew.skin)}"><b style="font-size:13px">${SKINS[rew.skin].name}</b><small>Skin légendaire</small></div>`);
     const box = el.querySelector('#cfRew');
-    for (let i = 0; i < cards.length; i++) { await new Promise(r => setTimeout(r, 380)); box.insertAdjacentHTML('beforeend', cards[i]); SFX.star(i); }
+    for (let i = 0; i < cards.length; i++) { await new Promise(r => setTimeout(r, 420)); box.insertAdjacentHTML('beforeend', cards[i]); SFX.star(i); const cd = box.lastElementChild.getBoundingClientRect(); fx.burst(cd.left + cd.width / 2, cd.top + cd.height / 2, 60, fwCols); fx.shake(6); }
     el.querySelector('#cfOk').classList.add('on');
   });
+  if (QS.has('copen')) setTimeout(() => ch.click(), 500);
   el.querySelector('#cfOk').addEventListener('click', () => {
     if (!el.querySelector('#cfOk').classList.contains('on')) return;
     S.gold += rew.gold; S.gems += rew.gems; S.barrels += rew.barrels; if (rew.skin && !S.owned.includes(rew.skin)) S.owned.push(rew.skin); save();
     if (rew.gold) flyCoins(innerWidth / 2, innerHeight / 2, '#pillGold', 14); if (rew.gems) flyCoins(innerWidth / 2, innerHeight / 2, '#pillGem', 8, 'i-gem');
-    el.style.transition = 'opacity .35s'; el.style.opacity = 0; setTimeout(() => el.remove(), 360);
+    el.style.transition = 'opacity .35s'; el.style.opacity = 0; setTimeout(() => { el._fx && el._fx.stop(); el.remove(); }, 360);
     musicDuck(.55, 1.2); chestBusy = false; SFX.click(); updChestBadge();
     if (rew.skin) toast(`Nouveau skin : ${SKINS[rew.skin].name} !`);
     onDone && onDone();
@@ -1938,6 +2172,9 @@ const SFX = {
   lose: () => { [392, 330, 262, 196].forEach((f, i) => tone(f, .5, .09, 'triangle', i * .18)); },
   chestAppear: () => { nz(.5, 200, 2000, .15, 'bandpass', 1); tone(392, .3, .07, 'triangle'); tone(587, .4, .06, 'triangle', .1); },
   drumroll: d => { if (!ac) return; let t = 0, gap = .11; while (t < d) { nz(.08, 1800, 300, .12 + t * .12, 'bandpass', .8, t); tone(140, .07, .08 + t * .05, 'sine', t, 70); t += gap; gap = Math.max(.035, gap * .9); } },
+  boom: () => { nz(1.4, 900, 40, .55); tone(48, 1.2, .5, 'sine', 0, 28); tone(96, .5, .2, 'triangle', 0, 50); },
+  firework: () => { nz(.5, 2500, 300, .12, 'highpass'); tone(rand(900, 1400), .25, .03, 'sine', 0, rand(200, 400)); },
+  coinRain: () => { for (let i = 0; i < 26; i++) tone(rand(1800, 3200), .09, .035, 'triangle', i * .07 + Math.random() * .04); },
   chestOpen: () => { nz(1.2, 3000, 200, .35); tone(65, 1, .4, 'sine', 0, 40);
     [[523, 659, 784], [587, 740, 880], [659, 831, 988], [784, 988, 1175]].forEach((ch, i) => ch.forEach(f => { tone(f, i === 3 ? 1.6 : .3, .06, 'sawtooth', .05 + i * .14); tone(f, i === 3 ? 1.8 : .35, .07, 'triangle', .05 + i * .14); }));
     for (let i = 0; i < 14; i++) tone(1568 + i * 140 + rand(-40, 40), .25, .04, 'sine', .7 + i * .045); },
@@ -2079,7 +2316,7 @@ async function boot() {
   const off = Math.max(0, (Date.now() - (S.lastTick || Date.now())) / 1000); S.stored = Math.min(CAP[S.b.tresor], S.stored + off * PROD[S.b.tresor]); S.lastTick = Date.now();
   resize();
   setCamNow(new V3(0, 2, 0), .62 + 1.4, .62, baseDist() * 1.9); applyCam();
-  camGoal.az = .62; camGoal.pol = .96; camGoal.dist = baseDist();
+  camGoal.az = .62; camGoal.pol = .96; camGoal.dist = baseDist(); camGoal.target.copy(HOME_T);
   composer.render();
   setP(.95);
   await new Promise(r => setTimeout(r, 50));
@@ -2095,6 +2332,7 @@ async function boot() {
     if (QS.get('auto') === 'raid') setTimeout(() => attackRival(Math.max(0, S.rivals.findIndex(r => !rivalShield(r)))), 1500);
     if (QS.get('auto') === 'map') setTimeout(() => openSeaMap(QS.has('r') ? +QS.get('r') : null), 1500);
     if (QS.get('auto') === 'view') setTimeout(() => { const I = RSLOTS[+(QS.get('r') || 0)]; flyTo(I.x, I.z, baseDist()); }, 600);
+    if (QS.has('focus')) setTimeout(() => focusBuilding(QS.get('focus'), 999), 300);
     if (QS.has('zoom')) { camGoal.dist = clamp(baseDist() * +QS.get('zoom'), zMin(), zMax()); }
     if (QS.get('auto') === 'shop') setTimeout(() => openShop('offres'), 1500);
     if (QS.get('auto') === 'skins') setTimeout(() => openShop('skins'), 1500);
@@ -2114,7 +2352,7 @@ document.querySelectorAll('[data-open]').forEach(b => b.addEventListener('click'
 $('#raidBtn').addEventListener('click', () => { SFX.click(); openSeaMap(); });
 $('#zIn').addEventListener('click', () => { SFX.click(); zoomBy(.72); userMoved = performance.now(); });
 $('#zOut').addEventListener('click', () => { SFX.click(); zoomBy(1.38); userMoved = performance.now(); });
-$('#zHome').addEventListener('click', () => { SFX.click(); if (mode === 'raid' && panCenter) camGoal.target.copy(panCenter); else { camGoal.target.set(0, 2, 0); camGoal.dist = baseDist(); } });
+$('#zHome').addEventListener('click', () => { SFX.click(); if (mode === 'raid' && panCenter) camGoal.target.copy(panCenter); else { camGoal.target.copy(HOME_T); camGoal.dist = baseDist(); } });
 $('#zMap').addEventListener('click', () => { SFX.click(); camGoal.target.set(0, 2, 0); camGoal.dist = zMax(); userMoved = performance.now(); });
 $('#collectBtn').addEventListener('click', collect);
 $('#sideChest').addEventListener('click', () => { SFX.click(); openNextChest(); });
