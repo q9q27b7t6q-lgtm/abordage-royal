@@ -378,3 +378,39 @@ svg{display:block}
 .sm-row .lt svg{width:18px;height:18px}
 .btn.sm{font-size:14px;padding:8px 12px}
 @keyframes dash{to{stroke-dashoffset:-28}}
+
+/* ===== v0.4 : améliorations visibles + vitrine 3D des navires ===== */
+.up-cmp{display:flex;align-items:center;justify-content:center;gap:8px;margin:6px 0 10px}
+.up-side{display:flex;flex-direction:column;align-items:center;gap:6px;flex:1;max-width:150px}
+.up-cmp .up-img{width:100%;height:auto;aspect-ratio:1;background:radial-gradient(circle at 50% 38%,color-mix(in srgb,var(--lc) 55%,#1b3d78),#0b1f42 75%);box-shadow:inset 0 0 0 2px var(--lc),0 0 18px color-mix(in srgb,var(--lc) 45%,transparent),inset 0 -20px 30px rgba(0,0,0,.4);position:relative}
+.up-cmp .up-img img{width:118%;height:118%;object-fit:contain;transform-origin:50% 60%}
+.up-side.nxt .up-img{animation:upPulse 1.6s ease-in-out infinite}
+@keyframes upPulse{50%{box-shadow:inset 0 0 0 3px var(--lc),0 0 30px var(--lc),inset 0 -20px 30px rgba(0,0,0,.4)}}
+.up-tag{font-family:'Lilita One';font-size:15px;color:#fff;text-align:center;line-height:1.05;padding:3px 10px;border-radius:10px;background:linear-gradient(180deg,color-mix(in srgb,var(--lc) 80%,#fff),color-mix(in srgb,var(--lc) 70%,#000));text-shadow:0 1px 0 rgba(0,0,0,.6);box-shadow:0 3px 0 rgba(0,0,0,.35)}
+.up-tag small{display:block;font-family:Nunito,sans-serif;font-weight:900;font-size:10px;opacity:.95}
+.up-arrow{font-size:26px;color:#9cff8a;text-shadow:0 0 10px #4cff6a;animation:upArr 1s ease-in-out infinite}
+@keyframes upArr{50%{transform:translateX(4px)}}
+.up-new{position:absolute;top:6px;left:50%;transform:translateX(-50%);font-style:normal;font-family:'Lilita One';font-size:10px;white-space:nowrap;padding:1px 7px;border-radius:7px;background:linear-gradient(180deg,#7dff6a,#20a83a);color:#06290c}
+.up-desc b{display:block;margin-top:4px}
+.card.skin .thumb.art{position:relative;aspect-ratio:1.15;margin:6px 0 2px;border-radius:12px;overflow:hidden;box-shadow:0 0 0 2px var(--rc),0 0 16px var(--rg),inset 0 0 20px rgba(0,0,0,.4);cursor:pointer}
+.card .thumb.art{position:relative;border-radius:12px;overflow:hidden;cursor:pointer}
+.card .thumb.art img{width:100%;height:100%;object-fit:cover;filter:none;transition:transform .3s}
+.card .thumb.art:active img{transform:scale(1.06)}
+.card .thumb.art .eye{position:absolute;right:5px;bottom:5px;font-family:'Lilita One';font-size:11px;padding:2px 7px;border-radius:8px;background:rgba(4,12,28,.7);color:#fff;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
+.card.skin.equipped{box-shadow:0 0 0 3px #7dff6a,0 0 18px rgba(125,255,106,.5),0 6px 14px rgba(0,0,0,.45)}
+.bonus.new{background:linear-gradient(180deg,#7dff6a,#1f9e36);color:#062a0c;top:30px;animation:newPop 1.2s ease-in-out infinite}
+@keyframes newPop{50%{transform:rotate(8deg) scale(1.12)}}
+.buy-box .bimg img.art-img{width:100%;height:100%;object-fit:cover;border-radius:16px;box-shadow:0 0 0 2px #f3c64d,0 10px 24px rgba(0,0,0,.6);filter:none}
+.buy-box .bimg:has(.art-img){width:220px;height:190px}
+.rar-t{font-family:'Lilita One';letter-spacing:2px}
+.rar-t.leg{color:#ffc83a}.rar-t.epic{color:#c38bff}.rar-t.rare{color:#6cbcff}.rar-t.com{color:#9fb3d6}
+.sv-stage{position:relative;width:100%;aspect-ratio:1/.78;border-radius:16px;overflow:hidden;touch-action:none;box-shadow:0 0 0 2px #f3c64d,0 0 30px rgba(243,198,77,.35),inset 0 0 30px rgba(0,0,0,.5);background:#0b1f42}
+.sv-stage.epic{box-shadow:0 0 0 2px #a24bff,0 0 30px rgba(162,75,255,.5)}
+.sv-stage.rare{box-shadow:0 0 0 2px #2f9bff,0 0 30px rgba(47,155,255,.45)}
+.sv-stage.com{box-shadow:0 0 0 2px #6f86ad}
+.sv-canvas{width:100%!important;height:100%!important;display:block}
+.sv-hint{text-align:center;font-size:11px;font-weight:800;color:#9fb3d6;margin:6px 0 4px}
+.sv-desc{text-align:center;font-weight:800;color:#e9f0ff;font-size:14px;margin:4px 6px 8px}
+.sv-perks{list-style:none;margin:0 0 12px;padding:0;font-size:12px;font-weight:800;color:#c9d6ee}
+.sv-perks li{padding:3px 0 3px 22px;position:relative}
+.sv-perks li:before{content:"✦";position:absolute;left:4px;color:#f3c64d}

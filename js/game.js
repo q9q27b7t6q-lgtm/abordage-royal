@@ -9,7 +9,7 @@ import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
 /* =========================================================
-   ABORDAGE ROYAL — prototype 3D v0.3 (Three.js)
+   ABORDAGE ROYAL — prototype 3D v0.4 (Three.js)
    ========================================================= */
 const $ = s => document.querySelector(s);
 const V3 = THREE.Vector3;
@@ -30,6 +30,7 @@ const DEF = { gold: 2500, gems: 150, tro: 0, xp: 0, lvl: 1, b: { tresor: 1, cano
 let S;
 try { S = Object.assign(structuredClone(DEF), JSON.parse(localStorage.getItem(SAVE_KEY) || '{}')); } catch (e) { S = structuredClone(DEF); }
 S.b = Object.assign({ ...DEF.b }, S.b); if (!Array.isArray(S.chests)) S.chests = [];
+if (QS.has('lv')) { const n = clamp(+QS.get('lv') || 1, 1, 5); S.b = { tresor: n, canon: n, quai: n }; }
 const save = () => { try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { } };
 const today = () => new Date().toDateString();
 
@@ -47,14 +48,41 @@ const BUILD = {
     stats: l => [['Navires en raid', SHIPS[l], SHIPS[Math.min(5, l + 1)], SHIPS[5]], ['Coque (PV)', SHIPHP[l], SHIPHP[Math.min(5, l + 1)], SHIPHP[5]]] },
 };
 const xpNeed = l => 120 + l * 80;
+/* chaque niveau = nouvelle couleur + nouvelle taille + nouveaux éléments */
+const LV = [null,
+  { name: 'Bois brut', col: '#c98a4b', scale: 1, pal: null, chest: null },
+  { name: 'Bois & Fer rouge', col: '#e0483a', scale: 1.06,
+    pal: { '15,3': { c: '#d0412f' }, '11,3': { c: '#b5703c' }, '5,3': { c: '#e0483a', k: .6 }, '7,3': { c: '#a9a3a0' }, '9,3': { c: '#e64b3c' } }, chest: { c: '#b8bcc6', m: .85, r: .35 } },
+  { name: 'Pierre & Azur', col: '#3d8bff', scale: 1.12,
+    pal: { '15,3': { c: '#2f6fd8' }, '11,3': { c: '#8a5a34' }, '13,3': { c: '#5b3a22' }, '7,3': { c: '#d7dde6' }, '3,3': { c: '#9eabbf' }, '5,3': { c: '#3a6fd0', k: .6, m: .4, r: .4 }, '9,3': { c: '#3d8bff' } }, chest: { c: '#e0b040', m: .9, r: .3 } },
+  { name: 'Forteresse Améthyste', col: '#a24bff', scale: 1.2,
+    pal: { '15,3': { c: '#8a3fe0', e: .15 }, '11,3': { c: '#6a3a26' }, '13,3': { c: '#3b2018' }, '7,3': { c: '#efe9f7' }, '3,3': { c: '#bcb0d6' }, '5,3': { c: '#8a3fe0', k: .6, e: .1 }, '9,3': { c: '#b06bff', e: .3 }, '1,3': { c: '#2a1838' } }, chest: { c: '#ffcf3a', m: 1, r: .25, e: .1 } },
+  { name: "Palais d'Or", col: '#ffc83a', scale: 1.28,
+    pal: { '15,3': { c: '#ffcf3a', m: 1, r: .28, e: .05 }, '11,3': { c: '#8e2a36' }, '13,3': { c: '#5a1018' }, '7,3': { c: '#fffaf0' }, '3,3': { c: '#f2e4c2' }, '5,3': { c: '#ffd54a', m: 1, r: .25, e: .08 }, '9,3': { c: '#ffe9a0', e: .2 }, '1,3': { c: '#3a0e18' } }, chest: { c: '#ffe070', m: 1, r: .25, e: .08 } },
+];
 
 const SKINS = {
-  classique: { name: 'Corsaire Classique', rar: 'com', price: 0, cur: 'gems' },
-  pourpre: { name: 'Voiles Pourpres', rar: 'rare', price: 180, cur: 'gems', tint: '#d39aff' },
-  abysse: { name: 'Flotte Abyssale', rar: 'epic', price: 450, cur: 'gems', tint: '#6f8fd8', emi: '#19c8ff', emiI: .35 },
-  royal: { name: 'Armada Royale', rar: 'epic', price: 900, cur: 'gems', model: 'royal' },
-  fantome: { name: 'Vaisseau Fantôme', rar: 'leg', price: 4.99, cur: 'eur', model: 'ship-ghost', emi: '#3dff9e', emiI: .45 },
-  dore: { name: 'Galion Doré', rar: 'leg', price: 9.99, cur: 'eur', tint: '#ffd257', metal: true, emi: '#ff9d00', emiI: .1 },
+  classique: { name: 'Corsaire Classique', rar: 'com', price: 0, cur: 'gems', desc: 'Le fidèle navire de tes débuts.', glow: '#8fb8ff' },
+  pourpre: { name: 'Voiles Pourpres', rar: 'rare', price: 180, cur: 'gems', desc: 'Acajou verni, voiles pourpres et ferrures dorées.', glow: '#b36bff',
+    pal: { '11,3': { c: '#a8582c' }, '13,3': { c: '#5a2a14' }, '5,3': { c: '#7d2fe0', k: .7 }, '9,3': { c: '#ffcc4d', m: 1, r: .3, e: .15 }, '1,3': { c: '#2a2230' }, '7,3': { c: '#e0c27a', m: .8, r: .3 } },
+    flag: { '5,3': { c: '#4b148a' } } },
+  abysse: { name: 'Flotte Abyssale', rar: 'epic', price: 450, cur: 'gems', desc: 'Coque des profondeurs et voiles bioluminescentes.', glow: '#19c8ff',
+    pal: { '11,3': { c: '#1f3a66' }, '13,3': { c: '#0c1830' }, '5,3': { c: '#0fb4d8', k: .6, e: .45 }, '9,3': { c: '#5ff3ff', e: .9 }, '1,3': { c: '#081222' }, '3,3': { c: '#1c4a6e' }, '7,3': { c: '#3ad7ff', e: .5 } },
+    flag: { '5,3': { c: '#062238' } } },
+  kraken: { name: 'Kraken Écarlate', rar: 'epic', price: 650, cur: 'gems', desc: 'Coque noire, voiles de sang et runes de feu.', glow: '#ff3b2f', isNew: true,
+    pal: { '11,3': { c: '#3a0d12' }, '13,3': { c: '#16060a' }, '5,3': { c: '#d0141f', k: .7, e: .18 }, '9,3': { c: '#ff5a2e', e: 1 }, '1,3': { c: '#120608' }, '3,3': { c: '#5a1a1a' }, '7,3': { c: '#ff6a3a', e: .6 } },
+    flag: { '5,3': { c: '#0d0d0f' }, '9,3': { c: '#ff3b2f', e: 1 } } },
+  royal: { name: 'Armada Royale', rar: 'epic', price: 900, cur: 'gems', model: 'royal', desc: 'Le vaisseau amiral de la Couronne : blanc, azur et or.', glow: '#4f8dff',
+    pal: { '11,3': { c: '#f3ede2' }, '13,3': { c: '#1f4fa8' }, '15,3': { c: '#ffcf3a', m: 1, r: .25, e: .15 }, '9,3': { c: '#fffaf0', k: .5 }, '1,3': { c: '#1a1f2e' } },
+    flag: { '9,3': { c: '#1f4fa8' } } },
+  glacier: { name: 'Glacier Boréal', rar: 'leg', price: 6.99, cur: 'eur', desc: 'Taillé dans la glace éternelle, il brille sous les aurores.', glow: '#7ff0ff', isNew: true,
+    pal: { '11,3': { c: '#dff3ff', r: .25 }, '13,3': { c: '#6fa8dc', r: .3 }, '5,3': { c: '#f4fbff', k: .5, e: .12 }, '9,3': { c: '#7ff0ff', e: 1 }, '1,3': { c: '#2a4a6e' }, '3,3': { c: '#a8d8ff', m: .8, r: .2 }, '7,3': { c: '#bff4ff', m: .6, r: .2, e: .4 } },
+    flag: { '5,3': { c: '#3fb8ff', e: .3 } } },
+  fantome: { name: 'Vaisseau Fantôme', rar: 'leg', price: 4.99, cur: 'eur', model: 'ship-ghost', desc: 'Revenu des abysses, ses voiles spectrales brillent dans la nuit.', glow: '#3dff9e',
+    pal: { '3,2': { c: '#1d3b3a', e: .12 }, '1,3': { c: '#0a1414' } }, sail: { '3,2': { c: '#4fe8a4', k: .8, e: .38 } }, flag: { '3,2': { c: '#4fe8a4', k: .8, e: .38 } } },
+  dore: { name: 'Galion Doré', rar: 'leg', price: 9.99, cur: 'eur', desc: "Coque en or massif, voiles d'ivoire : le trésor ultime des mers.", glow: '#ffc83a',
+    pal: { '11,3': { c: '#ffcf3a', m: 1, r: .22, e: .08 }, '13,3': { c: '#8c1f2c' }, '5,3': { c: '#fff1d0', k: .6 }, '9,3': { c: '#ffe17a', m: 1, r: .2, e: .4 }, '1,3': { c: '#3a0e18' }, '3,3': { c: '#ffd76a', m: 1, r: .25 }, '7,3': { c: '#ffd76a', m: 1, r: .25 } },
+    flag: { '5,3': { c: '#c8102e' } } },
 };
 const RAR = { com: 'COMMUN', rare: 'RARE', epic: 'ÉPIQUE', leg: 'LÉGENDAIRE' };
 
@@ -425,6 +453,45 @@ async function loadModels(onProgress) {
 }
 const at = (o, x, y, z) => { o.position.set(x, y, z); return o; };
 function M(name, s = 1) { const src = MODELS[name]; if (!src) return new THREE.Group(); const o = src.clone(true); o.scale.setScalar(s); return o; }
+/* ---- recoloration du colormap : une palette = un matériau (couleur, métal, brillance, lueur) ---- */
+const PAL_CACHE = {};
+const hexRGB = h => { const n = parseInt(h.slice(1), 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+function palMaterial(key, roles) {
+  if (PAL_CACHE[key]) return PAL_CACHE[key];
+  if (!boostedMap) return null;
+  const src = boostedMap.image, W = src.width, H = src.height, cw = W / 16, ch = H / 4;
+  const mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+  const cM = mk(), gM = cM.getContext('2d', { willReadFrequently: true }); gM.drawImage(src, 0, 0);
+  const cE = mk(), gE = cE.getContext('2d'); gE.fillStyle = '#000'; gE.fillRect(0, 0, W, H);
+  const cR = mk(), gR = cR.getContext('2d'); gR.fillStyle = 'rgb(0,199,0)'; gR.fillRect(0, 0, W, H);
+  let anyE = false;
+  for (const [cell, r] of Object.entries(roles)) {
+    const [cx, cy] = cell.split(',').map(Number), x0 = (cx - cx % 2) * cw, y0 = cy * ch, w = cw * 2;
+    const d = gM.getImageData(x0, y0, w, ch), p = d.data; let ml = 0;
+    for (let i = 0; i < p.length; i += 4) ml += .3 * p[i] + .59 * p[i + 1] + .11 * p[i + 2];
+    ml = Math.max(8, ml / (p.length / 4));
+    const [tr, tg, tb] = hexRGB(r.c), k = r.k ?? 1;
+    for (let i = 0; i < p.length; i += 4) { const l = .3 * p[i] + .59 * p[i + 1] + .11 * p[i + 2]; const f = clamp(1 + (l / ml - 1) * k, .55, 1.45); p[i] = clamp(tr * f, 0, 255); p[i + 1] = clamp(tg * f, 0, 255); p[i + 2] = clamp(tb * f, 0, 255); }
+    gM.putImageData(d, x0, y0);
+    if (r.e) { anyE = true; gE.fillStyle = `rgb(${tr * r.e | 0},${tg * r.e | 0},${tb * r.e | 0})`; gE.fillRect(x0, y0, w, ch); }
+    if (r.m != null || r.r != null) { gR.fillStyle = `rgb(0,${Math.round((r.r ?? .78) * 255)},${Math.round((r.m ?? 0) * 255)})`; gR.fillRect(x0, y0, w, ch); }
+  }
+  const T = (c, srgb) => { const t = new THREE.CanvasTexture(c); t.flipY = false; if (srgb) t.colorSpace = THREE.SRGBColorSpace; t.magFilter = boostedMap.magFilter; t.minFilter = boostedMap.minFilter; t.wrapS = boostedMap.wrapS; t.wrapT = boostedMap.wrapT; t.anisotropy = 4; return t; };
+  const mr = T(cR, false);
+  const mat = new THREE.MeshStandardMaterial({ map: T(cM, true), roughnessMap: mr, metalnessMap: mr, roughness: 1, metalness: 1, emissive: anyE ? '#ffffff' : '#000000', emissiveMap: anyE ? T(cE, true) : null, emissiveIntensity: anyE ? 1.6 : 1 });
+  PAL_CACHE[key] = mat; return mat;
+}
+function applyPal(root, mat, chestMat) {
+  if (!mat) return;
+  (function walk(o, inChest) {
+    if (o.userData.noPal) return;
+    const ch = inChest || o.userData.chest;
+    if (o.isMesh && o.material && o.material.map) o.material = (ch && chestMat) ? chestMat : mat;
+    for (const c of o.children) walk(c, ch);
+  })(root, false);
+}
+const lvMat = l => LV[l] && LV[l].pal ? palMaterial('lv' + l, LV[l].pal) : null;
+const lvChestMat = l => LV[l] && LV[l].pal ? palMaterial('lvc' + l, { ...LV[l].pal, '7,3': LV[l].chest }) : null;
 function ownMats(obj) { obj.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.userData.baseColor = o.material.color.clone(); } }); return obj; }
 
 /* ---------------- WORLD BUILD ---------------- */
@@ -443,22 +510,17 @@ function coinPile(n, R, H, seed = 1) {
   im.castShadow = true; im.receiveShadow = true; return im;
 }
 const shipNames = { pirate: ['ship-pirate-small', 'ship-pirate-medium', 'ship-pirate-large'], royal: ['ship-small', 'ship-medium', 'ship-large'] };
+function shipMat(id, part) { const sk = SKINS[id]; if (!sk || !sk.pal) return null; return palMaterial(`ship:${id}:${part}`, { ...sk.pal, ...(sk[part] || {}) }); }
 function makeShip(tier, skinId = S.skin, scale = .62) {
   const sk = SKINS[skinId] || SKINS.classique; tier = clamp(tier, 1, 3);
   let name = shipNames.pirate[tier - 1];
   if (sk.model === 'ship-ghost') name = 'ship-ghost';
   if (sk.model === 'royal') name = shipNames.royal[tier - 1];
-  const inner = ownMats(M(name, scale));
-  inner.traverse(o => {
-    if (!o.isMesh) return; const m = o.material;
-    if (sk.tint) m.color.set(sk.tint);
-    if (sk.metal) { m.map = null; m.metalness = 1; m.roughness = .3; m.color.set('#ffc93c'); }
-    if (sk.emi) { m.emissive = new THREE.Color(sk.emi); m.emissiveIntensity = sk.emiI; m.emissiveMap = m.map; }
-    m.needsUpdate = true;
-    o.userData.baseColor = m.color.clone();
-  });
+  const inner = M(name, scale);
+  if (sk.pal) inner.traverse(o => { if (!o.isMesh || !o.material.map) return; const part = /flag/.test(o.name) ? 'flag' : /sail/.test(o.name) ? 'sail' : 'hull'; const m = shipMat(skinId, part); if (m) o.material = m; });
+  ownMats(inner);
   const g = new THREE.Group(); inner.position.y = -.45; g.add(inner);
-  g.userData = { inner, skin: skinId, phase: Math.random() * 6 };
+  g.userData = { inner, skin: skinId, phase: Math.random() * 6, noPal: true };
   return g;
 }
 
@@ -591,7 +653,7 @@ function homeExtras() {
   placeOn(I, g, M('tool-shovel' in MODELS ? 'tool-shovel' : 'bottle-large', 1), -4, 7, .5);
   const wall1 = M('castle-wall', .95), wall2 = M('castle-gate', .95), wall3 = M('castle-window', .95);
   placeOn(I, g, wall1, -13.5, -6.5, 1.1); placeOn(I, g, wall2, -9.6, -10.6, .75); placeOn(I, g, wall3, -5, -13.2, .35);
-  const avoidH = [[SLOTS.tresor[0], SLOTS.tresor[1], 6.5], [SLOTS.canon[0], SLOTS.canon[1], 4.5], [quaiPos[0], quaiPos[1], 6], [7, -7, 3.5], [3, 8.5, 3], [-9.5, -10, 5.5], [-14, -6, 3], [-5, -13, 3]];
+  const avoidH = [[SLOTS.tresor[0], SLOTS.tresor[1], 7.4], [SLOTS.canon[0], SLOTS.canon[1], 5], [quaiPos[0], quaiPos[1], 6], [7, -7, 3.5], [3, 8.5, 3], [-9.5, -10, 5.5], [-14, -6, 3], [-5, -13, 3]];
   // torches le long des chemins
   [[HUB[0] + 2.2, HUB[1] - 1.6], [SLOTS.tresor[0] + 4, SLOTS.tresor[1] + 3.6], [SLOTS.canon[0] + 3.6, SLOTS.canon[1] - 3.2], [quaiPos[0] - 3.6, quaiPos[1] + .6], [-6.8, -8.2], [5.2, 5.6]].forEach(([x, z]) => { torch(I, g, x, z); avoidH.push([x, z, 1.2]); });
   decorate(I, g, 77, avoidH);
@@ -603,64 +665,120 @@ function homeExtras() {
   islets.filter(([x, z]) => RSLOTS.every(I => Math.hypot(I.x - x, I.z - z) > I.R * 1.42 + 45)).forEach(([x, z, s], i) => { const k = M(['rocks-b', 'rocks-sand-a', 'rocks-a', 'rocks-sand-b'][i % 4], s); k.position.set(x, -1.2, z); k.rotation.y = i * 1.7; scene.add(k); if (i % 2 === 0) { const p = M('palm-detailed-bend', 1.2); p.position.set(x + 1.5, s * 1.4, z); scene.add(p); } });
 }
 
-/* buildings */
-function buildTresor(l) {
+/* buildings — chaque niveau change couleur, taille, socle et ornements */
+const PLINTH_MATS = {};
+function pm(key, o) { return PLINTH_MATS[key] || (PLINTH_MATS[key] = new THREE.MeshStandardMaterial(o)); }
+const goldTrim = () => pm('gold', { color: '#ffc93c', metalness: 1, roughness: .22, emissive: '#7a4a00', emissiveIntensity: .35 });
+function crystal(col, h = 1.4) {
   const g = new THREE.Group();
-  const base = M('platform', 2.4); g.add(base);
-  const chest = M('chest', 2.1); chest.position.set(0, .5, 0); chest.rotation.y = .5; g.add(chest);
-  const piles = [[1.9, 1.3, 1.5, .9], [-1.7, 1.5, 1.2, .7], [.6, -2, 1.1, .6], [-1.3, -1.4, 1, .5]];
-  const n = [0, 2, 3, 4, 4, 4][l];
-  for (let i = 0; i < n; i++) { const [x, z, R, H] = piles[i]; const cp = coinPile(Math.round(60 + l * 30), R + l * .12, H + l * .18, i + l); cp.position.set(x, .5, z); g.add(cp); }
-  if (l >= 2) { const roof = M('structure-roof', 1.85); g.add(roof); }
-  if (l >= 3) { const tw = M('tower-complete-large', .62); tw.position.set(-4.3, 0, -3.4); g.add(tw); }
-  if (l >= 4) { const f1 = M('flag-pirate-high', 1); f1.position.set(3.4, 0, -2.6); g.add(f1); const f2 = M('flag-pirate-high', 1); f2.position.set(-2.8, 0, 3.2); g.add(f2); }
-  if (l >= 5) { const tw2 = M('tower-complete-small', .62); tw2.position.set(4.3, 0, -3.6); g.add(tw2); }
-  g.add(at(M('barrel', .9), 3.5, 0, 1.5));
-  g.add(at(M('crate', .9), -3.6, 0, .6));
-  g.userData.labelY = l >= 3 ? 9 : l >= 2 ? 7.5 : 4.2;
+  const m = new THREE.Mesh(new THREE.OctahedronGeometry(.42, 0), pm('cr' + col, { color: col, emissive: col, emissiveIntensity: 1.4, roughness: .15, metalness: .2, flatShading: true }));
+  m.scale.set(.8, 1.7, .8); m.position.y = h; g.add(m); m.onBeforeRender = () => { m.rotation.y = performance.now() * .0012; };
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(.18, .28, h - .3, 6), goldTrim()); post.position.y = (h - .3) / 2; g.add(post);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(col).multiplyScalar(1.6), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  glow.scale.setScalar(2.2); glow.position.y = h; g.add(glow);
   return g;
 }
+function lantern(col) {
+  const g = new THREE.Group();
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(.07, .1, 1.6, 6), woodMat); post.position.y = .8; post.castShadow = true; g.add(post);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(.32, .38, .32), pm('lan' + col, { color: col, emissive: col, emissiveIntensity: 1.6 })); box.position.y = 1.75; g.add(box);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(col).multiplyScalar(1.4), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  glow.scale.setScalar(1.6); glow.position.y = 1.75; g.add(glow); return g;
+}
+/* socle : bois (2) → pierre azur (3) → pierre + or + cristaux (4) → marbre royal + or + obélisques lumineux (5) */
+function plinth(l, R, nOrn = 4) {
+  const g = new THREE.Group(); let top = 0;
+  if (l < 2) return { g, top };
+  const add = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = true; m.receiveShadow = true; g.add(m); return m; };
+  if (l === 2) {
+    add(new THREE.CylinderGeometry(R, R * 1.05, .5, 20), pm('p2', { color: '#9a6236', roughness: .85 }), 0); top = .25;
+    add(new THREE.TorusGeometry(R * 1.0, .09, 6, 32).rotateX(Math.PI / 2), pm('p2r', { color: '#c0392b', roughness: .6 }), .26);
+  } else if (l === 3) {
+    add(new THREE.CylinderGeometry(R, R * 1.1, .8, 8), pm('p3', { color: '#cfd6e0', roughness: .8, flatShading: true }), .05); top = .45;
+    add(new THREE.TorusGeometry(R * .97, .12, 6, 8).rotateX(Math.PI / 2).rotateY(Math.PI / 8), pm('p3r', { color: '#2f6fd8', roughness: .4, metalness: .3, emissive: '#0a2a70', emissiveIntensity: .4 }), .46);
+  } else {
+    const st = l === 4 ? pm('p4', { color: '#ece6f5', roughness: .6, flatShading: true }) : pm('p5', { color: '#fffaf0', roughness: .35, metalness: .05, flatShading: true });
+    add(new THREE.CylinderGeometry(R * 1.04, R * 1.14, .7, 8), st, 0);
+    add(new THREE.CylinderGeometry(R * .9, R * .98, .5, 8), st, .55); top = .8;
+    add(new THREE.TorusGeometry(R * 1.05, .1, 6, 8).rotateX(Math.PI / 2).rotateY(Math.PI / 8), goldTrim(), .36);
+    add(new THREE.TorusGeometry(R * .9, .09, 6, 8).rotateX(Math.PI / 2).rotateY(Math.PI / 8), goldTrim(), .81);
+    if (l === 5) { const ring = add(new THREE.TorusGeometry(R * 1.2, .07, 6, 48).rotateX(Math.PI / 2), pm('p5g', { color: '#ffd54a', emissive: '#ffb000', emissiveIntensity: 2.2 }), .08); ring.castShadow = false; }
+  }
+  if (l >= 4) for (let i = 0; i < nOrn; i++) { const a = Math.PI / 4 + i * Math.PI * 2 / nOrn, c = crystal(l === 5 ? '#ffd23f' : '#b06bff', l === 5 ? 2.2 : 1.5); c.position.set(Math.cos(a) * R * 1.02, .7, Math.sin(a) * R * 1.02); g.add(c); }
+  else if (l === 3) for (let i = 0; i < nOrn; i++) { const a = Math.PI / 4 + i * Math.PI * 2 / nOrn, c = lantern('#5fb0ff'); c.position.set(Math.cos(a) * R * .98, .4, Math.sin(a) * R * .98); g.add(c); }
+  else if (l === 2) for (let i = 0; i < 2; i++) { const a = Math.PI * .75 + i * Math.PI, c = lantern('#ff8a3a'); c.position.set(Math.cos(a) * R * .95, .2, Math.sin(a) * R * .95); g.add(c); }
+  g.userData.noPal = true;
+  return { g, top };
+}
+function finishLevel(g, c, l, top) { c.position.y = top; applyPal(c, lvMat(l), lvChestMat(l)); g.add(c); g.userData.labelY = (c.userData.labelY || 4) + top; g.userData.gun = c.userData.gun; g.userData.labelX = c.userData.labelX; g.userData.lvl = l; return g; }
+function buildTresor(l) {
+  const g = new THREE.Group(), c = new THREE.Group();
+  const P = plinth(l, l >= 3 ? 5.3 : 4.1); g.add(P.g);
+  const base = M('platform', 2.4); c.add(base);
+  const chest = M('chest', 2.1 + (l - 1) * .12); chest.position.set(0, .5, 0); chest.rotation.y = .5; chest.userData.chest = true; c.add(chest);
+  const piles = [[1.9, 1.3, 1.5, .9], [-1.7, 1.5, 1.2, .7], [.6, -2, 1.1, .6], [-1.3, -1.4, 1, .5]];
+  const n = [0, 2, 3, 4, 4, 4][l];
+  for (let i = 0; i < n; i++) { const [x, z, R, H] = piles[i]; const cp = coinPile(Math.round(60 + l * 30), R + l * .12, H + l * .18, i + l); cp.position.set(x, .5, z); c.add(cp); }
+  if (l >= 2) { const roof = M('structure-roof', 1.85); c.add(roof); }
+  if (l >= 3) { const tw = M('tower-complete-large', .62); tw.position.set(-4.3, 0, -3.4); c.add(tw); }
+  if (l >= 4) { const f1 = M('flag-pirate-high', 1); f1.position.set(3.4, 0, -2.6); c.add(f1); const f2 = M('flag-pirate-high', 1); f2.position.set(-2.8, 0, 3.2); c.add(f2); }
+  if (l >= 5) { const tw2 = M('tower-complete-small', .62); tw2.position.set(4.3, 0, -3.6); c.add(tw2); const gp = coinPile(140, 1.6, 1.4, 99); gp.position.set(0, 2.9, 0); c.add(gp); }
+  c.add(at(M('barrel', .9), 3.5, 0, 1.5));
+  c.add(at(M('crate', .9), -3.6, 0, .6));
+  c.userData.labelY = l >= 3 ? 9 : l >= 2 ? 7.5 : 4.2;
+  return finishLevel(g, c, l, P.top);
+}
 function buildCanon(l) {
-  const g = new THREE.Group(); let top;
-  if (l === 1) { g.add(M('platform', 1.9)); top = .45; }
-  else { g.add(M('tower-base', 1.25)); top = 2.5; if (l >= 3) { const mid = M(l >= 5 ? 'tower-middle-windows' : 'tower-middle', 1.25); mid.position.y = 2.5; g.add(mid); top = 5; } }
-  const c = M('cannon', 1.65); c.position.y = top; g.add(c); g.userData.gun = c;
-  for (let i = 0; i < 3; i++) { const b = M('cannon-ball', .75); b.position.set(2.6 + (i % 2) * .5, .25 + (i === 2 ? .4 : 0), -1.4 + (i === 1 ? .5 : 0) + (i === 2 ? .25 : 0)); g.add(b); }
-  if (l >= 2) g.add(at(M('barrel', .9), -2.6, 0, 1.6));
-  if (l >= 4) { const f = M('flag-pirate-pennant', 1.1); f.position.set(1.3, top, -1.3); g.add(f); }
-  if (l >= 5) { const cm = M('cannon-mobile', 1.4); cm.position.set(-3, 0, -2); cm.rotation.y = .6; g.add(cm); }
-  g.userData.labelY = top + 3.6;
-  return g;
+  const g = new THREE.Group(), c = new THREE.Group(); let top;
+  const P = plinth(l, 3.2); g.add(P.g);
+  if (l === 1) { c.add(M('platform', 1.9)); top = .45; }
+  else { c.add(M('tower-base', 1.25)); top = 2.5; if (l >= 3) { const mid = M(l >= 5 ? 'tower-middle-windows' : 'tower-middle', 1.25); mid.position.y = 2.5; c.add(mid); top = 5; } if (l >= 5) { const mid2 = M('tower-middle', 1.25); mid2.position.y = 5; c.add(mid2); top = 7.5; } }
+  const gun = new THREE.Group(); gun.position.y = top; c.add(gun);
+  const cn = M('cannon', 1.65 + (l - 1) * .12); gun.add(cn);
+  if (l >= 3) { const c2 = M('cannon', 1.45 + (l - 3) * .1); c2.position.set(.95, 0, .1); c2.rotation.y = .12; gun.add(c2); cn.position.x = -.8; }
+  c.userData.gun = gun;
+  for (let i = 0; i < 3 + (l >= 3 ? 2 : 0); i++) { const b = M('cannon-ball', .75); b.position.set(2.6 + (i % 2) * .5, .25 + (i === 2 ? .4 : 0), -1.4 + (i === 1 ? .5 : 0) + (i === 2 ? .25 : 0) + (i > 2 ? 1.2 : 0)); c.add(b); }
+  if (l >= 2) c.add(at(M('barrel', .9), -2.6, 0, 1.6));
+  if (l >= 4) { const f = M('flag-pirate-pennant', 1.1); f.position.set(1.3, top, -1.3); c.add(f); }
+  if (l >= 5) { const cm = M('cannon-mobile', 1.4); cm.position.set(-3, 0, -2); cm.rotation.y = .6; c.add(cm); }
+  c.userData.labelY = top + 3.6;
+  return finishLevel(g, c, l, P.top);
 }
 let homeShip = null;
 function buildQuai(l) {
-  const g = new THREE.Group();
+  const g = new THREE.Group(), c = new THREE.Group();
   const nP = l >= 2 ? 4 : 3;
-  for (let i = 0; i < nP; i++) { const d = M('structure-platform-dock', 1.3); d.position.set(i * 3.25, -.35, 0); g.add(d); }
-  g.add(at(M('barrel', .8), 3.2, 1.35, -.8));
-  g.add(at(M('crate', .8), 6.4, 1.35, .7));
-  if (l >= 3) { const f = M('flag-high-pennant', 1); f.position.set((nP - 1) * 3.25 + .9, 1.3, -1); g.add(f); }
-  if (l >= 4) { const rb = M('boat-row-large', 1.1); rb.position.set(5, -.2, -4.2); rb.rotation.y = .3; g.add(rb); }
-  const ship = makeShip(Math.min(3, l)); ship.position.set(7.5, 0, 6.6); ship.rotation.y = Math.PI / 2; g.add(ship);
-  homeShip = ship;
-  g.userData.labelY = 5; g.userData.labelX = 4;
-  return g;
+  for (let i = 0; i < nP; i++) { const d = M('structure-platform-dock', 1.3); d.position.set(i * 3.25, -.35, 0); c.add(d); }
+  c.add(at(M('barrel', .8), 3.2, 1.35, -.8));
+  c.add(at(M('crate', .8), 6.4, 1.35, .7));
+  if (l >= 2) [[1.6, 1.6], [4.85, 1.6], [8.1, 1.6]].slice(0, l >= 3 ? 3 : 2).forEach(([x, z]) => { const L = lantern(l >= 5 ? '#ffd23f' : l >= 4 ? '#c88bff' : l >= 3 ? '#5fb0ff' : '#ff8a3a'); L.position.set(x, 1.3, z); L.userData.noPal = true; c.add(L); });
+  if (l >= 3) { const f = M('flag-high-pennant', 1); f.position.set((nP - 1) * 3.25 + .9, 1.3, -1); c.add(f); }
+  if (l >= 4) { const rb = M('boat-row-large', 1.1); rb.position.set(5, -.2, -4.2); rb.rotation.y = .3; c.add(rb); }
+  if (l >= 5) { const lh = M('tower-complete-small', .7); lh.position.set((nP - 1) * 3.25 + 1.2, 1.2, 1.2); c.add(lh); const cr = crystal('#ffd23f', 1); cr.position.set((nP - 1) * 3.25 + 1.2, 1.2 + 6.4, 1.2); cr.userData.noPal = true; c.add(cr); }
+  const ship = makeShip(Math.min(3, l)); ship.position.set(7.5, 0, 6.6); ship.rotation.y = Math.PI / 2; c.add(ship);
+  c.userData.labelY = 5; c.userData.labelX = 4;
+  finishLevel(g, c, l, 0); g.userData.ship = ship; return g;
 }
 const BUILDERS = { tresor: buildTresor, canon: buildCanon, quai: buildQuai };
 const homeB = {};
 function placeBuilding(key, anim) {
   if (homeB[key]) { homeGrp.remove(homeB[key]); }
-  const g = BUILDERS[key](S.b[key]);
-  g.userData.key = key;
+  const l = S.b[key], inner = BUILDERS[key](l), sc = LV[l].scale;
+  const g = new THREE.Group(); inner.scale.setScalar(sc); g.add(inner);
+  if (key === 'quai') homeShip = inner.userData.ship;
+  g.userData = { key, labelY: inner.userData.labelY * sc, labelX: (inner.userData.labelX || 0) * sc, gun: inner.userData.gun, lvl: l };
   if (key === 'quai') { g.position.set(quaiPos[0], 0, quaiPos[1]); g.rotation.y = -DOCK_A; }
   else { const [x, z] = SLOTS[key]; g.position.set(x, islandH(HOME, x, z) - .05, z); g.rotation.y = key === 'canon' ? .9 : .2; }
   g.traverse(o => { if (o.isMesh) o.userData.bkey = key; });
   homeGrp.add(g); homeB[key] = g;
   if (anim) {
     g.scale.setScalar(.01);
-    tween(.7, k => g.scale.setScalar(Math.max(.01, easeOutBack(k))));
+    tween(.8, k => g.scale.setScalar(Math.max(.01, easeOutBack(k))));
     const wp = g.getWorldPosition(new V3());
-    FX.dust(wp, 6); FX.sparkle(wp.clone().setY(wp.y + 3), 40, 4);
+    FX.dust(wp, 6 * sc); FX.sparkle(wp.clone().setY(wp.y + 3), 60, 4 * sc);
+    const col = new THREE.Color(LV[l].col);
+    for (let i = 0; i < 70; i++) { const a = rand(0, 6.28), sp = rand(4, 11); fire.emit(wp.x, wp.y + 1.5, wp.z, Math.cos(a) * sp, rand(4, 14), Math.sin(a) * sp, rand(.7, 1.4), rand(.8, 1.6), .2, [col.r * 5, col.g * 5, col.b * 5], [col.r * 2, col.g * 2, col.b * 2], 1, .5, 6); }
+    flashLight(wp, 1.2);
   }
 }
 
@@ -718,7 +836,7 @@ function makeHomeLabels() {
 function refreshHomeLabels() {
   for (const k of Object.keys(BUILD)) {
     const L = homeLabels[k]; if (!L) continue; const l = S.b[k];
-    L.el.querySelector('.bl-lv').textContent = l;
+    const lv = L.el.querySelector('.bl-lv'); lv.textContent = l; lv.style.background = `radial-gradient(circle at 35% 30%,#fff,${LV[l].col} 55%,#1a1030)`; L.el.querySelector('.bl-name').style.boxShadow = `0 0 0 2px ${LV[l].col},0 0 12px ${LV[l].col}88,0 4px 10px rgba(0,0,0,.5)`;
     const up = L.el.querySelector('.bl-up');
     up.textContent = l < 5 && S.gold >= BUILD[k].cost[l + 1] ? '▲ Amélioration dispo' : '';
   }
@@ -1239,7 +1357,7 @@ let thumbR = null, thumbScene, thumbCam;
 function thumb(obj, w = 300, h = 260, az = .75, el = .32) {
   if (!thumbR) {
     thumbR = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-    thumbR.toneMapping = THREE.ACESFilmicToneMapping; thumbR.toneMappingExposure = 1.1;
+    thumbR.toneMapping = THREE.ACESFilmicToneMapping; thumbR.toneMappingExposure = .92;
     thumbScene = new THREE.Scene();
     const pm = new THREE.PMREMGenerator(thumbR); thumbScene.environment = pm.fromScene(new RoomEnvironment(), .04).texture; thumbScene.environmentIntensity = .7;
     thumbScene.add(new THREE.HemisphereLight('#dceeff', '#e0b88a', 1.4));
@@ -1256,17 +1374,130 @@ function thumb(obj, w = 300, h = 260, az = .75, el = .32) {
   thumbScene.remove(holder);
   return url;
 }
-const SHIP_THUMB = {};
-function shipThumb(id) { if (!SHIP_THUMB[id]) { const s = makeShip(3, id, 1); SHIP_THUMB[id] = thumb(s, 320, 280, 2.3, .25); } return SHIP_THUMB[id]; }
+/* ---- VITRINE 3D des navires : vraie scène (ciel, mer, reflets, lueur, bloom) ---- */
+const RARBG = { com: ['#3b6fb8', '#0d2550', '#8fb8ff'], rare: ['#2a8cff', '#071d48', '#7cc4ff'], epic: ['#9b4dff', '#1a0a40', '#d6a8ff'], leg: ['#ffb22e', '#3a1404', '#ffe39a'] };
+let artR = null, artComp = null, artPass = null, artBloom = null;
+const artWaterVS = `varying vec3 vW; void main(){ vec4 w=modelMatrix*vec4(position,1.); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`;
+const artWaterFS = `uniform float uTime; uniform vec3 uDeep,uShal,uBg,uGlow; uniform vec2 uHull; varying vec3 vW;
+ float h(vec2 p){return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);} float n(vec2 p){vec2 i=floor(p),f=fract(p);vec2 u=f*f*(3.-2.*f);return mix(mix(h(i),h(i+vec2(1,0)),u.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),u.x),u.y);}
+ float fb(vec2 p){return n(p)*.55+n(p*2.1)*.3+n(p*4.3)*.15;}
+ void main(){ vec2 p=vW.xz; float r=length(p);
+  vec3 c=mix(uShal,uDeep,smoothstep(1.5,10.,r));
+  float w1=fb(p*.9+vec2(uTime*.25,-uTime*.18)), w2=fb(p*2.2-vec2(uTime*.32,uTime*.21));
+  c+=vec3(.55,.85,1.)*smoothstep(.58,.8,w1)*.22+vec3(1.)*smoothstep(.72,.9,w2)*.18;
+  c+=uGlow*exp(-r*.28)*.35;
+  vec2 q=vec2(p.x/uHull.x,p.y/uHull.y); float e=length(q);
+  float foam=(1.-smoothstep(.95,1.35+.25*w1,e))*step(.85,e)*smoothstep(.35,.6,w2+.2);
+  c=mix(c,vec3(1.),clamp(foam,0.,1.)*.85);
+  c=mix(c,uBg,smoothstep(9.,24.,r));
+  gl_FragColor=vec4(c,1.); }`;
+function bgTex(rar) {
+  const [a, b, gl] = RARBG[rar] || RARBG.com;
+  return canvasTex(256, (g, s) => {
+    const lg = g.createLinearGradient(0, 0, 0, s); lg.addColorStop(0, b); lg.addColorStop(.62, a); lg.addColorStop(1, b); g.fillStyle = lg; g.fillRect(0, 0, s, s);
+    const rg = g.createRadialGradient(s * .5, s * .42, 0, s * .5, s * .42, s * .55); rg.addColorStop(0, gl + '88'); rg.addColorStop(.35, gl + '30'); rg.addColorStop(1, gl + '00'); g.fillStyle = rg; g.fillRect(0, 0, s, s);
+    g.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 14; i++) { const ang = -Math.PI / 2 + (i - 7) * .2; g.fillStyle = `rgba(255,255,255,${.025 + Math.random() * .03})`; g.beginPath(); g.moveTo(s * .5, s * .4); g.lineTo(s * .5 + Math.cos(ang - .05) * s, s * .4 + Math.sin(ang - .05) * s); g.lineTo(s * .5 + Math.cos(ang + .05) * s, s * .4 + Math.sin(ang + .05) * s); g.fill(); }
+    for (let i = 0; i < 40; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * .7})`; g.beginPath(); g.arc(Math.random() * s, Math.random() * s * .55, Math.random() * 1.3, 0, 7); g.fill(); }
+  });
+}
+function showcase(id) {
+  const sk = SKINS[id] || SKINS.classique, [, bot, gl] = RARBG[sk.rar] || RARBG.com;
+  artInit(); const sc = new THREE.Scene(); sc.background = bgTex(sk.rar);
+  if (!artR.__env) { const pmr = new THREE.PMREMGenerator(artR); artR.__env = pmr.fromScene(new RoomEnvironment(), .04).texture; }
+  sc.environment = artR.__env; sc.environmentIntensity = .45;
+  sc.add(new THREE.HemisphereLight('#e6f2ff', '#3a6a8a', .7));
+  const key = new THREE.DirectionalLight('#fff0d8', 2.6); key.position.set(6, 9, 7); sc.add(key);
+  const rim = new THREE.DirectionalLight(new THREE.Color(sk.glow || gl), 3.5); rim.position.set(-6, 5, -9); sc.add(rim);
+  const fill = new THREE.PointLight(new THREE.Color(sk.glow || gl), 10, 30, 1.5); fill.position.set(0, 2, 4); sc.add(fill);
+  const ship = makeShip(3, id, 1); ship.userData.inner.position.y = -.35;
+  const holder = new THREE.Group(); holder.add(ship); sc.add(holder);
+  const box = new THREE.Box3().setFromObject(ship), sz = box.getSize(new V3()), ctr = box.getCenter(new V3());
+  ship.position.x -= ctr.x; ship.position.z -= ctr.z;
+  const len = Math.max(sz.x, sz.z), along = sz.x > sz.z;
+  const wu = { uTime: { value: 0 }, uDeep: { value: new THREE.Color('#063a74') }, uShal: { value: new THREE.Color('#1fb8d4') }, uBg: { value: new THREE.Color(bot).lerp(new THREE.Color('#0a3a6a'), .5) }, uGlow: { value: new THREE.Color(sk.glow || gl) }, uHull: { value: new THREE.Vector2(along ? sz.x * .52 : sz.z * .22, along ? sz.z * .22 : sz.z * .52) } };
+  wu.uHull.value.set(along ? sz.x * .5 : sz.x * .55, along ? sz.z * .55 : sz.z * .5);
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(80, 80, 1, 1).rotateX(-Math.PI / 2), new THREE.ShaderMaterial({ uniforms: wu, vertexShader: artWaterVS, fragmentShader: artWaterFS }));
+  water.position.y = 0; sc.add(water);
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(sk.glow || gl).multiplyScalar(.9), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: .3 }));
+  halo.scale.setScalar(len * 1.6); halo.position.set(0, sz.y * .55, -len * .6); sc.add(halo);
+  const sparks = [];
+  if (sk.rar === 'leg' || sk.rar === 'epic') for (let i = 0; i < (sk.rar === 'leg' ? 26 : 14); i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, color: new THREE.Color(sk.glow || gl).multiplyScalar(2), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+    sp.userData = { a: rand(0, 6.28), r: rand(len * .35, len * .75), y: rand(.3, sz.y * 1.1), s: rand(.12, .32), sp: rand(.2, .6) }; sc.add(sp); sparks.push(sp);
+  }
+  const cam = new THREE.PerspectiveCamera(30, 1.15, .1, 400);
+  const dist = Math.max(len, sz.y * 1.25) * 1.42 + sz.y * .3;
+  const az = along ? .62 : 2.2;
+  const place = (azi, t) => { cam.position.set(Math.sin(azi) * dist, sz.y * .62 + dist * .2, Math.cos(azi) * dist); cam.lookAt(0, sz.y * .38, 0); };
+  place(az);
+  const update = t => {
+    wu.uTime.value = t; ship.userData.inner.rotation.z = Math.sin(t * 1.1) * .03; ship.userData.inner.rotation.x = Math.sin(t * .8) * .02; ship.userData.inner.position.y = -.35 + Math.sin(t * 1.3) * .06;
+    for (const p of sparks) { const u = p.userData; const a = u.a + t * u.sp; p.position.set(Math.cos(a) * u.r, u.y + Math.sin(t * 2 + u.a) * .3, Math.sin(a) * u.r); p.scale.setScalar(u.s * (1 + .5 * Math.sin(t * 4 + u.a * 3))); }
+  };
+  update(.8);
+  return { sc, cam, holder, update, place, az, dispose() { sc.traverse(o => { if (o.geometry && o !== ship) o.geometry.dispose?.(); }); sc.background.dispose(); } };
+}
+function artInit(w = 460, h = 400) {
+  if (!artR) {
+    artR = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+    artR.toneMapping = THREE.ACESFilmicToneMapping; artR.toneMappingExposure = .82; artR.setPixelRatio(1);
+    artComp = new EffectComposer(artR); artPass = new RenderPass(new THREE.Scene(), new THREE.PerspectiveCamera()); artComp.addPass(artPass);
+    artBloom = new UnrealBloomPass(new THREE.Vector2(w, h), .42, .45, .92); artComp.addPass(artBloom); artComp.addPass(new OutputPass());
+  }
+}
+function artRender(w, h, show) {
+  artInit(w, h);
+  if (artR.domElement.width !== w || artR.domElement.height !== h) { artR.setSize(w, h, false); artComp.setSize(w, h); }
+  show.cam.aspect = w / h; show.cam.updateProjectionMatrix();
+  artPass.scene = show.sc; artPass.camera = show.cam; artComp.render();
+}
+let skinView = null;
+const SHIP_THUMB = {}, SHIP_ART = {};
+function shipArt(id) {
+  if (!SHIP_ART[id]) { if (skinView) return shipThumb(id); const sh = showcase(id); artRender(460, 400, sh); SHIP_ART[id] = artR.domElement.toDataURL('image/jpeg', .9); sh.dispose(); }
+  return SHIP_ART[id];
+}
+function shipThumb(id) { if (!SHIP_THUMB[id]) { const s = makeShip(3, id, 1); SHIP_THUMB[id] = thumb(s, 360, 300, 2.25, .3); } return SHIP_THUMB[id]; }
+/* aperçu 3D en direct (rotation) */
+function openSkinView(id) {
+  const s = SKINS[id]; if (!s) return;
+  const own = S.owned.includes(id), eq = S.skin === id;
+  const btn = eq ? `<button class="btn btn-blue wide dis">Équipé</button>` : own ? `<button class="btn btn-green wide" data-equip="${id}">Équiper</button>` : s.cur === 'eur' ? `<button class="btn btn-gold wide" data-buy="skin:${id}">Acheter ${eur(s.price)}</button>` : `<button class="btn btn-blue wide" data-gbuy="skin:${id}">${ic('i-gem')} ${s.price}</button>`;
+  openModal(`${closeBtn}<div class="p-head"><h2>${s.name}</h2><p class="rar-t ${s.rar}">${RAR[s.rar]}</p></div><div class="p-body"><div class="sv-stage ${s.rar}" id="svStage"></div>
+   <div class="sv-hint">⟲ Glisse pour tourner le navire</div><div class="sv-desc">${s.desc || ''}</div>
+   <ul class="sv-perks"><li>Skin appliqué à toute ta flotte de raid</li><li>Visible par les autres joueurs sur la Carte des Mers</li>${s.rar === 'leg' ? '<li>Effets lumineux légendaires</li>' : ''}</ul>${btn}
+   <div style="height:8px"></div><button class="btn btn-blue wide" id="svBack">Retour aux skins</button></div>`, 'skinview');
+  const stage = $('#svStage'); const show = showcase(id); skinView = show;
+  const W = Math.min(720, Math.round(stage.clientWidth * Math.min(2, devicePixelRatio || 1))), H = Math.round(W * .78);
+  artRender(W, H, show); stage.appendChild(artR.domElement); artR.domElement.className = 'sv-canvas';
+  let az = show.az, drag = null, last = performance.now(), t0 = last;
+  stage.addEventListener('pointerdown', e => { drag = e.clientX; stage.setPointerCapture(e.pointerId); });
+  stage.addEventListener('pointermove', e => { if (drag != null) { az -= (e.clientX - drag) * .012; drag = e.clientX; } });
+  stage.addEventListener('pointerup', () => drag = null); stage.addEventListener('pointercancel', () => drag = null);
+  const loop = now => {
+    if (skinView !== show || !artR.domElement.isConnected) { if (skinView === show) skinView = null; show.dispose(); return; }
+    const dt = Math.min(.05, (now - last) / 1000); last = now; if (drag == null) az += dt * .35;
+    show.place(az); show.update((now - t0) / 1000); artRender(W, H, show); requestAnimationFrame(loop);
+  };
+  requestAnimationFrame(loop);
+  mWrap.querySelectorAll('[data-equip]').forEach(b => b.addEventListener('click', () => { skinView = null; equip(b.dataset.equip); }));
+  mWrap.querySelectorAll('[data-buy]').forEach(b => b.addEventListener('click', () => { skinView = null; buyEur(b.dataset.buy); }));
+  mWrap.querySelectorAll('[data-gbuy]').forEach(b => b.addEventListener('click', () => { skinView = null; buyGems(b.dataset.gbuy); }));
+  $('#svBack').addEventListener('click', () => { SFX.click(); skinView = null; openShop('skins'); });
+}
 
 /* upgrade */
 function openUpgrade(key) {
   const B = BUILD[key], l = S.b[key], max = l >= 5;
-  const img = thumb(BUILDERS[key](l), 260, 260, .8, .45);
+  const img = thumb(BUILDERS[key](l), 260, 260, .8, .45), nimg = l < 5 ? thumb(BUILDERS[key](l + 1), 260, 260, .8, .45) : null;
+  const cur = LV[l], nx = LV[Math.min(5, l + 1)];
   const stats = B.stats(l).map(([n, cur, nxt, top]) => `<div class="stat"><div class="stat-top"><span>${n}</span><span>${fmt(cur)}${!max ? ` <b>+${fmt(nxt - cur)}</b>` : ''}</span></div><div class="sbar">${!max ? `<div class="nxt" style="width:${nxt / top * 100}%"></div>` : ''}<div class="cur" style="width:${cur / top * 100}%"></div></div></div>`).join('');
   const cost = B.cost[l + 1];
   openModal(`${closeBtn}<div class="p-head"><h2>${B.name}</h2><p>Niveau ${l} / 5</p></div><div class="p-body">
-   <div class="up-hero"><div class="up-img"><img src="${img}"></div><div><div class="up-lv">Niveau ${l}${max ? ' · MAX' : ` → ${l + 1}`}</div><div class="up-desc">${B.desc}</div></div></div>
+   <div class="up-cmp"><div class="up-side"><div class="up-img" style="--lc:${cur.col}"><img src="${img}" style="transform:scale(${(cur.scale / nx.scale * .92).toFixed(3)})"></div><div class="up-tag" style="--lc:${cur.col}">Niv. ${l}<small>${cur.name}</small></div></div>
+    ${max ? '' : `<div class="up-arrow">➜</div><div class="up-side nxt"><div class="up-img" style="--lc:${nx.col}"><img src="${nimg}"><i class="up-new">NOUVEAU LOOK</i></div><div class="up-tag" style="--lc:${nx.col}">Niv. ${l + 1}<small>${nx.name}</small></div></div>`}</div>
+   <div class="up-desc">${B.desc}${max ? '' : ` <b style="color:${nx.col}">Niveau ${l + 1} : nouvelles couleurs, bâtiment plus grand et nouveaux ornements.</b>`}</div>
    ${stats}<div class="lvl-dots">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= l ? 'on' : ''}"></i>`).join('')}</div>
    ${max ? `<div class="maxed">Niveau maximum atteint 👑</div>` : `<button class="btn btn-green wide" id="upGo">${ic('i-hammer')} Améliorer &nbsp;${ic('i-coin')} ${fmt(cost)}</button>`}
    ${key === 'tresor' ? `<div style="height:10px"></div><button class="btn btn-gold wide" id="upCol">${ic('i-coin')} Récolter ${fmt(Math.floor(S.stored))}</button>` : ''}
@@ -1275,7 +1506,7 @@ function openUpgrade(key) {
     if (S.gold < cost) { toast(`Il te manque ${fmt(cost - S.gold)} pièces d'or`, true); return; }
     S.gold -= cost; S.b[key]++; addXP(40 * S.b[key]); save(); closeModal();
     placeBuilding(key, true); SFX.upgrade(); refreshHomeLabels();
-    toast(`${B.name} — niveau ${S.b[key]} !`);
+    toast(`${B.name} — niveau ${S.b[key]} : ${LV[S.b[key]].name} !`);
     const w = wpos(homeB[key]); camGoal.target.set(w.x * .5, 2, w.z * .5);
     setTimeout(() => camGoal.target.set(0, 2, 0), 1800);
   });
@@ -1591,7 +1822,7 @@ function openShop(tab = shopTab) {
       <img class="ho-img" src="${shipThumb('dore')}"><ul class="ho-list"><li>${ic('i-flag')}Skin Galion Doré</li><li>${ic('i-gem')}1 200 gemmes</li><li>${ic('i-coin')}50 000 or</li><li>${ic('i-barrel')}5 barils de poudre</li></ul>
       <div class="ho-timer">⏳ Se termine dans ${midnightLeft()}</div><button class="btn btn-gold" data-buy="roi" style="min-width:60%"><span class="price-old">34,99 €</span>9,99 €</button></div>
       <div class="section-t">OFFRES DU JOUR</div><div class="grid">
-      <div class="card epic"><div class="rar">DÉBUTANT</div><div class="bonus">x5</div><div class="thumb"><img src="${shipThumb('pourpre')}"></div><div class="cname">Pack Corsaire</div><button class="btn btn-gold" data-buy="debutant">1,99 €</button></div>
+      <div class="card epic"><div class="rar">DÉBUTANT</div><div class="bonus">x5</div><div class="thumb art" data-view="pourpre"><img src="${shipArt('pourpre')}"></div><div class="cname">Pack Corsaire</div><button class="btn btn-gold" data-buy="debutant">1,99 €</button></div>
       <div class="card rare"><div class="rar">ARSENAL</div><div class="thumb">${ic('i-barrel')}</div><div class="cname">3 Barils de poudre</div><button class="btn btn-blue" data-gbuy="barils">${ic('i-gem')} 60</button></div>
       <div class="card leg"><div class="rar">LÉGENDAIRE</div><div class="thumb">${chestSVG('legendaire')}</div><div class="cname">Coffre de l'Amiral</div><button class="btn btn-gold" data-buy="amiral">4,99 €</button></div>
       <div class="card epic"><div class="rar">COFFRE</div><div class="thumb">${chestSVG('or')}</div><div class="cname">Coffre d'Or</div><button class="btn btn-blue" data-gbuy="coffre:or">${ic('i-gem')} 120</button></div>
@@ -1601,7 +1832,7 @@ function openShop(tab = shopTab) {
     body = `<div class="grid">${Object.entries(SKINS).map(([id, s]) => {
       const own = S.owned.includes(id), eq = S.skin === id;
       const btn = eq ? `<button class="btn btn-blue dis">Équipé</button>` : own ? `<button class="btn btn-green" data-equip="${id}">Équiper</button>` : s.cur === 'eur' ? `<button class="btn btn-gold" data-buy="skin:${id}">${eur(s.price)}</button>` : `<button class="btn btn-blue" data-gbuy="skin:${id}">${ic('i-gem')} ${s.price}</button>`;
-      return `<div class="card ${s.rar}"><div class="rar">${RAR[s.rar]}</div><div class="thumb"><img src="${shipThumb(id)}"></div><div class="cname">${s.name}</div>${btn}</div>`;
+      return `<div class="card skin ${s.rar}${eq ? ' equipped' : ''}"><div class="rar">${RAR[s.rar]}</div>${s.isNew && !own ? '<div class="bonus new">NOUVEAU</div>' : ''}<div class="thumb art" data-view="${id}"><img src="${shipArt(id)}"><span class="eye">👁 3D</span></div><div class="cname">${s.name}</div>${btn}</div>`;
     }).join('')}</div>`;
   } else if (tab === 'gemmes') {
     body = `<div class="grid">${GEMPACKS.map(([n, p, k, tag], i) => `<div class="card ${i >= 4 ? 'leg' : i >= 2 ? 'epic' : 'rare'}"><div class="rar">${fmt(n)} GEMMES</div>${tag ? `<div class="bonus">${tag}</div>` : ''}<div class="thumb">${gemPile(k)}</div><div class="cname">${['Poignée', 'Bourse', 'Sac', 'Coffret', 'Coffre', 'Trésor'][i]} de gemmes</div><button class="btn btn-gold" data-buy="gems:${i}">${eur(p)}</button></div>`).join('')}</div>`;
@@ -1617,6 +1848,7 @@ function openShop(tab = shopTab) {
   mWrap.querySelectorAll('[data-buy]').forEach(b => b.addEventListener('click', () => buyEur(b.dataset.buy)));
   mWrap.querySelectorAll('[data-gbuy]').forEach(b => b.addEventListener('click', () => buyGems(b.dataset.gbuy)));
   mWrap.querySelectorAll('[data-goto]').forEach(b => b.addEventListener('click', () => openWheel()));
+  mWrap.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => { SFX.click(); openSkinView(b.dataset.view); }));
 }
 function equip(id) { S.skin = id; save(); placeBuilding('quai', true); SFX.upgrade(); toast(`${SKINS[id].name} équipé !`); openShop('skins'); }
 function grant(what) {
@@ -1641,7 +1873,7 @@ function itemInfo(what) {
   if (k === 'debutant') return ['Pack Corsaire', 1.99, `<img src="${shipThumb('pourpre')}">`];
   if (k === 'amiral') return ["Coffre de l'Amiral", 4.99, chestSVG('legendaire')];
   if (k === 'gems') return [`${fmt(GEMPACKS[+v][0])} gemmes`, GEMPACKS[+v][1], gemPile(GEMPACKS[+v][2])];
-  if (k === 'skin') return [SKINS[v].name, SKINS[v].price, `<img src="${shipThumb(v)}">`];
+  if (k === 'skin') return [SKINS[v].name, SKINS[v].price, `<img class="art-img" src="${shipArt(v)}">`];
   return ['Objet', 0, ''];
 }
 function buyEur(what) {
@@ -1851,7 +2083,7 @@ async function boot() {
   composer.render();
   setP(.95);
   await new Promise(r => setTimeout(r, 50));
-  ['dore', 'pourpre', S.skin].forEach(shipThumb);
+  ['dore', S.skin].forEach(shipThumb); ['pourpre', 'dore'].forEach(shipArt);
   setP(1); clearInterval(tipT);
   $('#ldTip').textContent = 'Ton île t’attend, capitaine !';
   $('#ldPlay').style.display = 'block';
@@ -1868,7 +2100,8 @@ async function boot() {
     if (QS.get('auto') === 'skins') setTimeout(() => openShop('skins'), 1500);
     if (QS.get('auto') === 'wheel') setTimeout(() => openWheel(), 1500);
     if (QS.get('auto') === 'chest') setTimeout(() => openChest(QS.get('t') || 'or'), 1500);
-    if (QS.get('auto') === 'up') setTimeout(() => openUpgrade('tresor'), 1500);
+    if (QS.get('auto') === 'up') setTimeout(() => openUpgrade(QS.get('k') || 'tresor'), 1500);
+    if (QS.get('auto') === 'skinview') setTimeout(() => openSkinView(QS.get('s') || 'dore'), 1500);
   };
   $('#ldPlay').addEventListener('click', play, { once: true });
   if (QS.has('auto')) play();
