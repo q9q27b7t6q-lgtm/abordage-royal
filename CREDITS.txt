@@ -1,0 +1,2 @@
+Modèles 3D : Kenney "Pirate Kit" (CC0) — www.kenney.nl
+Moteur : three.js (MIT)
