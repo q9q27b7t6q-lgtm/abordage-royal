@@ -318,3 +318,63 @@ svg{display:block}
 @keyframes copen{0%{transform:scale(1.15)}40%{transform:scale(.88,1.1)}100%{transform:scale(.9) translateY(18%)}}
 @keyframes cflash{0%{opacity:.95}100%{opacity:0}}
 @keyframes cardin{from{opacity:0;transform:translateY(-120px) scale(.2) rotateY(180deg)}}
+
+/* ---------- v0.3 : contrôles caméra ---------- */
+#camctl{position:fixed;right:10px;top:50%;transform:translateY(-62%);z-index:12;display:flex;flex-direction:column;gap:10px}
+#camctl button{width:44px;height:44px;border-radius:14px;background:radial-gradient(circle at 50% 30%,#2b5aa0,#0d2550 70%);box-shadow:0 0 0 2px #f3c64d,0 0 0 4px #3d2706,0 6px 14px rgba(0,0,0,.55),inset 0 2px 0 rgba(255,255,255,.2);font-family:'Lilita One';font-size:28px;line-height:44px;color:#fff;text-shadow:0 2px 0 #000;display:flex;align-items:center;justify-content:center}
+#camctl button svg{width:28px;height:28px}
+#camctl button:active{transform:scale(.9)}
+
+/* étiquettes des îles rivales */
+.rlabel{gap:4px}
+.rl-card{display:flex;flex-direction:column;align-items:center;padding:4px 10px 5px;border-radius:12px;background:linear-gradient(180deg,rgba(60,10,14,.92),rgba(20,4,8,.92));box-shadow:0 0 0 1.5px #ff6b6b,0 6px 14px rgba(0,0,0,.55);cursor:pointer}
+.rl-card.shield{background:linear-gradient(180deg,rgba(14,40,80,.92),rgba(4,14,32,.92));box-shadow:0 0 0 1.5px #8fd6ff,0 6px 14px rgba(0,0,0,.55)}
+.rl-name{display:flex;align-items:center;gap:6px;font-family:'Lilita One';font-size:14px;white-space:nowrap;text-shadow:0 1px 0 #000}
+.rl-name i{width:10px;height:10px;border-radius:3px;box-shadow:0 0 0 1.5px #000}
+.rl-name b{font-weight:400;font-size:12px;min-width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#ffe48a,#d69a22 60%,#7a4f0a);color:#2a1603;text-shadow:none}
+.rl-loot{display:flex;align-items:center;gap:3px;font-family:'Lilita One';font-size:13px;color:var(--gold3)}
+.rl-loot svg{width:18px;height:18px}
+.rl-loot em{font-style:normal;color:#9fdcff;margin-left:6px;font-size:12px}
+.rl-go{display:none;align-items:center;gap:4px;font-family:'Lilita One';font-size:15px;padding:6px 14px;border-radius:12px;background:linear-gradient(180deg,#ff8a7a,#e5383f 55%,#b31d26);box-shadow:0 4px 0 #6e0a12,0 6px 16px rgba(0,0,0,.5);text-shadow:0 2px 0 #5a0a0a;animation:pulse 1.2s infinite}
+.rl-go svg{width:20px;height:20px}
+.rlabel.near .rl-go{display:flex}
+
+/* carte des mers */
+.panel.seamap{width:min(96vw,480px)}
+.m-wrap:has(.seamap){width:min(96vw,480px)}
+.smap{position:relative;width:100%;aspect-ratio:1;border-radius:18px;overflow:hidden;box-shadow:0 0 0 2px #f3c64d,0 0 0 4px #3d2706,inset 0 0 40px rgba(0,0,0,.6),0 10px 24px rgba(0,0,0,.5);margin-bottom:12px}
+.smap svg{position:absolute;inset:0;width:100%;height:100%}
+.smap .smi{cursor:pointer;transition:filter .2s}
+.smap .smi.sh{filter:saturate(.5) brightness(.85)}
+.smap .route{animation:dash 1s linear infinite}
+.sm-pin{position:absolute;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;gap:2px;transition:transform .2s;z-index:2}
+.sm-pin .sm-tag{display:flex;align-items:center;gap:5px;font-family:'Lilita One';font-size:12px;white-space:nowrap;padding:2px 8px 2px 3px;border-radius:10px;background:rgba(40,6,10,.9);box-shadow:0 0 0 1.5px #ff6b6b,0 3px 8px rgba(0,0,0,.5);text-shadow:0 1px 0 #000}
+.sm-pin .sm-tag b{font-weight:400;font-size:11px;min-width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 35% 30%,#ffe48a,#d69a22 60%,#7a4f0a);color:#2a1603}
+.sm-pin .sm-tag.me{background:rgba(6,30,70,.92);box-shadow:0 0 0 1.5px #f3c64d,0 3px 8px rgba(0,0,0,.5)}
+.sm-pin .sm-loot{display:flex;align-items:center;gap:2px;font-family:'Lilita One';font-size:12px;color:var(--gold3);text-shadow:0 1px 2px #000,0 0 4px #000}
+.sm-pin .sm-loot svg{width:15px;height:15px}
+.sm-pin.sh .sm-tag{background:rgba(6,30,70,.9);box-shadow:0 0 0 1.5px #8fd6ff}
+.sm-pin.sh .sm-loot{color:#9fdcff}
+.sm-pin.on{transform:translate(-50%,-50%) scale(1.15);z-index:3}
+.sm-pin.on .sm-tag{box-shadow:0 0 0 2px #ffd54a,0 0 18px rgba(255,90,70,.9)}
+.sm-pin.home{pointer-events:none}
+.rvc{position:relative;box-shadow:inset 0 0 0 1.5px rgba(255,107,107,.55);margin-bottom:10px}
+.rvc .diff{position:absolute;top:10px;right:10px}
+.diff,.df{font-family:'Lilita One';font-size:11px;padding:2px 8px;border-radius:8px;letter-spacing:.5px}
+.easy{background:#2fae3b;color:#fff}.mid{background:#f0a21a;color:#2a1603}.hard{background:#d1252b;color:#fff}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:#6d7fa3;margin-right:5px;vertical-align:middle}
+.dot.on{background:#4fe06a;box-shadow:0 0 6px #4fe06a}
+.sm-fleet{display:flex;align-items:center;gap:6px;justify-content:center;font-size:12px;font-weight:800;color:#cfe0ff;margin:12px 0 2px}
+.sm-fleet svg{width:18px;height:18px}
+.sm-fleet b{color:#fff}
+.sm-list{display:flex;flex-direction:column;gap:8px}
+.sm-row{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:14px;background:rgba(5,12,28,.6);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.08);text-align:left;width:100%}
+.sm-row.on{box-shadow:inset 0 0 0 2px #ffd54a,0 0 14px rgba(255,200,60,.25)}
+.sm-row .fl{width:12px;height:30px;border-radius:4px;flex:none;box-shadow:0 0 0 1.5px #000}
+.sm-row .nm{flex:1;min-width:0;display:flex;flex-direction:column}
+.sm-row .nm b{font-family:'Lilita One';font-weight:400;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sm-row .nm small{font-size:11px;font-weight:800;color:#a9bbdc}
+.sm-row .lt{display:flex;align-items:center;gap:3px;font-family:'Lilita One';font-size:14px;color:var(--gold3)}
+.sm-row .lt svg{width:18px;height:18px}
+.btn.sm{font-size:14px;padding:8px 12px}
+@keyframes dash{to{stroke-dashoffset:-28}}
